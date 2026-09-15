@@ -91,9 +91,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: EufySdkConfigEntry) -> b
     except Exception as err:  # noqa: BLE001 - a failed config push shouldn't block setup
         LOGGER.warning("could not set bridge poll interval: %s", err)
 
-    # Reload when the options change, so a new poll interval is applied.
-    entry.async_on_unload(entry.add_update_listener(_async_reload_on_update))
-
     # Property manifests are static per device — fetch once so the platforms can
     # build switch/select/number/sensor entities. A device that fails is skipped.
     properties: dict[str, list] = {}
@@ -116,10 +113,3 @@ async def async_unload_entry(hass: HomeAssistant, entry: EufySdkConfigEntry) -> 
     if unloaded:
         await entry.runtime_data.client.close()
     return unloaded
-
-
-async def _async_reload_on_update(
-    hass: HomeAssistant, entry: EufySdkConfigEntry
-) -> None:
-    """Reload the entry when its options change (e.g. a new poll interval)."""
-    await hass.config_entries.async_reload(entry.entry_id)
