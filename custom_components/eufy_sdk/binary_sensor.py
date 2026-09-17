@@ -172,7 +172,7 @@ class EufyStreamingBinarySensor(EufySdkDeviceEntity, BinarySensorEntity):
     """ON while a live P2P feed is active (the camera is being streamed)."""
 
     _attr_device_class = BinarySensorDeviceClass.RUNNING
-    _attr_name = "Streaming"
+    _attr_translation_key = "streaming"
 
     def __init__(
         self,
@@ -229,7 +229,7 @@ class EufySolixConnectivitySensor(
         self._sn = sn
         dev = coordinator.solix_devices.get(sn, {})
         self._attr_unique_id = f"solix_{sn}_connectivity"
-        self._attr_name = "Connectivity"
+        self._attr_translation_key = "connectivity"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, f"solix:{sn}")},
             name=dev.get("name") or sn,

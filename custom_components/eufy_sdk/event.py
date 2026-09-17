@@ -72,7 +72,7 @@ class _EufySdkBusEvent(EufySdkDeviceEntity, EventEntity):
 class EufySdkDoorbellEvent(_EufySdkBusEvent):
     """A doorbell press as an event entity."""
 
-    _attr_name = "Doorbell"
+    _attr_translation_key = "doorbell"
     _attr_device_class = EventDeviceClass.DOORBELL
 
     def __init__(self, coordinator: EufySdkDataUpdateCoordinator, sn: str) -> None:
@@ -89,7 +89,7 @@ class EufySdkDoorbellEvent(_EufySdkBusEvent):
 class EufySdkDetectionEvent(_EufySdkBusEvent):
     """The device's discrete detection events (pet / vehicle / package / sound / …)."""
 
-    _attr_name = "Detection"
+    _attr_translation_key = "detection"
 
     def __init__(self, coordinator: EufySdkDataUpdateCoordinator, sn: str) -> None:
         """Bind to a camera-class device."""

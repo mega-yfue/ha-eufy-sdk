@@ -57,7 +57,7 @@ class EufySdkEventImage(EufySdkDeviceEntity, ImageEntity):
     thumbnail shows even before the first event.
     """
 
-    _attr_name = "Last event"
+    _attr_translation_key = "last_event"
 
     def __init__(
         self,

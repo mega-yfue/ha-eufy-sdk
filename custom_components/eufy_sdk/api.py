@@ -239,6 +239,19 @@ class EufySdkApiClient:
         reply = await self.rpc("device.action", sn=sn, action=action, args=list(args))
         return reply.get("result")
 
+    async def preset_slots(self, sn: str) -> list[dict[str, Any]]:
+        """
+        Read a camera's stored preset positions.
+
+        A P2P request/reply rather than a cloud read, so it answers only while the
+        camera is awake — a sleeping battery camera times out. Hence the longer
+        timeout, and callers that treat a failure as "ask again later".
+        """
+        reply = await self.rpc(
+            "device.action", timeout=45, sn=sn, action="preset.list", args=[]
+        )
+        return reply.get("result") or []
+
     async def set_property(self, sn: str, name: str, value: Any) -> None:
         """Write a device property."""
         await self.rpc("device.set", sn=sn, name=name, value=value)

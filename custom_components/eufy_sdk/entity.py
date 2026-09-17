@@ -110,6 +110,12 @@ def classify(spec: dict[str, Any]) -> str | None:
 class EufySdkPropertyEntity(EufySdkDeviceEntity):
     """An entity bound to one property, reading its live value from the `state` map."""
 
+    # Subclasses that name themselves through a translation key set this. Home
+    # Assistant lets `_attr_name` win over a translation key, so a subclass that
+    # sets both would silently show the property's own label instead of its name —
+    # every per-bit switch reading "Ai Detect Type", say.
+    _named_by_translation = False
+
     def __init__(
         self,
         coordinator: EufySdkDataUpdateCoordinator,
@@ -121,7 +127,8 @@ class EufySdkPropertyEntity(EufySdkDeviceEntity):
         self._spec = spec
         self._prop: str = spec["name"]
         self._attr_unique_id = f"{sn}_{self._prop}"
-        self._attr_name = label_for(self._prop)
+        if not self._named_by_translation:
+            self._attr_name = label_for(self._prop)
         self._post_write_unsub: Callable[[], None] | None = None
         self._assumed_value: Any = None
 
