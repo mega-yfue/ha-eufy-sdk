@@ -67,7 +67,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: EufySdkConfigEntry) -> b
 
     def _on_event(evt: dict) -> None:
         hass.bus.async_fire(f"{DOMAIN}_event", evt)
-        if evt.get("event") == "ready":
+        event = evt.get("event")
+        if event == "contactState":
+            sn = evt.get("deviceSn") or evt.get("sn")
+            if sn and sn in coordinator.data and "open" in evt:
+                coordinator.data[sn].setdefault("state", {})["contact"] = bool(
+                    evt.get("open")
+                )
+                coordinator.async_update_listeners()
+        elif event == "ready":
             _refresh_now()
 
     client = EufySdkApiClient(
