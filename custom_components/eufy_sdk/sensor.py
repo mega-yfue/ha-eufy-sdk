@@ -189,6 +189,21 @@ SOLIX_BATTERY_METRICS: dict[str, dict[str, Any]] = {
         "unit": "°C",
         "precision": 0,
     },
+    # State-of-health % from the SDK's a4 BMS-blob decode (candidate). No BATTERY
+    # device_class: that means charge level; this is pack health, distinct from SOC.
+    "batteryHealth": {
+        "name": "Battery Health",
+        "unit": "%",
+        "icon": "mdi:battery-heart-variant",
+        "precision": 0,
+    },
+    "batteryCurrent": {
+        "name": "Battery Current",
+        "device_class": SensorDeviceClass.CURRENT,
+        "unit": "A",
+        "icon": "mdi:current-dc",
+        "precision": 1,
+    },
     "batteryPower": {
         "name": "Battery Power",
         "device_class": SensorDeviceClass.POWER,
