@@ -10,7 +10,14 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import ATTRIBUTION, CONF_HOST, CONF_PORT, DOMAIN
+from .const import (
+    ATTRIBUTION,
+    CONF_GO2RTC_RTSP_PORT,
+    CONF_HOST,
+    CONF_PORT,
+    DEFAULT_GO2RTC_RTSP_PORT,
+    DOMAIN,
+)
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -18,9 +25,6 @@ if TYPE_CHECKING:
 
     from .coordinator import EufySdkDataUpdateCoordinator
     from .data import EufySdkConfigEntry
-
-# go2rtc (bundled in the bridge) serves RTSP here; its stream id is the device serial.
-GO2RTC_RTSP_PORT = 8554
 
 
 async def async_setup_entry(
@@ -32,8 +36,9 @@ async def async_setup_entry(
     coordinator = entry.runtime_data.coordinator
     host = entry.data[CONF_HOST]
     port = entry.data[CONF_PORT]
+    rtsp_port = int(entry.data.get(CONF_GO2RTC_RTSP_PORT, DEFAULT_GO2RTC_RTSP_PORT))
     async_add_entities(
-        EufySdkCamera(coordinator, sn, host, port)
+        EufySdkCamera(coordinator, sn, host, port, rtsp_port)
         for sn, dev in coordinator.data.items()
         if dev.get("stream")
     )
@@ -53,6 +58,7 @@ class EufySdkCamera(CoordinatorEntity["EufySdkDataUpdateCoordinator"], Camera):
         sn: str,
         host: str,
         port: int,
+        rtsp_port: int,
     ) -> None:
         """Bind to a device serial + the bridge address."""
         CoordinatorEntity.__init__(self, coordinator)
@@ -60,6 +66,7 @@ class EufySdkCamera(CoordinatorEntity["EufySdkDataUpdateCoordinator"], Camera):
         self._sn = sn
         self._host = host
         self._port = port
+        self._rtsp_port = rtsp_port
         self._attr_unique_id = f"{sn}_camera"
         dev = coordinator.data.get(sn, {})
         self._attr_device_info = DeviceInfo(
@@ -77,7 +84,7 @@ class EufySdkCamera(CoordinatorEntity["EufySdkDataUpdateCoordinator"], Camera):
 
     async def stream_source(self) -> str:
         """Return the go2rtc RTSP URL — HA's stream component + go2rtc do the work."""
-        return f"rtsp://{self._host}:{GO2RTC_RTSP_PORT}/{self._sn}"
+        return f"rtsp://{self._host}:{self._rtsp_port}/{self._sn}"
 
     async def async_camera_image(
         self,

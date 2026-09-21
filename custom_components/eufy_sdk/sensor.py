@@ -14,7 +14,13 @@ from homeassistant.core import callback
 from homeassistant.helpers.device_registry import DeviceInfo
 
 from .bespoke import BITFIELD_SWITCHES
-from .const import CONF_HOST, DOMAIN, LOGGER
+from .const import (
+    CONF_GO2RTC_RTSP_PORT,
+    CONF_HOST,
+    DEFAULT_GO2RTC_RTSP_PORT,
+    DOMAIN,
+    LOGGER,
+)
 from .entity import (
     EufySdkDeviceEntity,
     EufySdkPropertyEntity,
@@ -31,8 +37,6 @@ if TYPE_CHECKING:
     from .data import EufySdkConfigEntry
 
 EVENT_TYPE = f"{DOMAIN}_event"
-GO2RTC_RTSP_PORT = 8554  # go2rtc RTSP listener in the bridge image
-
 # Anker Solix Smart Meter (AE1X0) telemetry metrics.
 #
 # IMPORTANT: the SDK only NAMES the one confirmed binding, `meterVoltageL1` (ff09 tag
@@ -215,8 +219,9 @@ async def async_setup_entry(
     )
     # A "Stream URL" sensor per camera — the RTSP URL while a live feed is active.
     host = entry.data[CONF_HOST]
+    rtsp_port = int(entry.data.get(CONF_GO2RTC_RTSP_PORT, DEFAULT_GO2RTC_RTSP_PORT))
     entities.extend(
-        EufyStreamUrlSensor(coordinator, sn, host)
+        EufyStreamUrlSensor(coordinator, sn, host, rtsp_port)
         for sn, dev in coordinator.data.items()
         if dev.get("stream")
     )
@@ -384,10 +389,12 @@ class EufyStreamUrlSensor(EufySdkDeviceEntity, SensorEntity):
         coordinator: EufySdkDataUpdateCoordinator,
         sn: str,
         host: str,
+        port: int,
     ) -> None:
         """Bind to a camera serial and remember the bridge host for the URL."""
         super().__init__(coordinator, sn)
         self._host = host
+        self._port = port
         self._attr_unique_id = f"{sn}_stream_url"
         self._attr_name = "Stream URL"
         self._active: bool | None = None  # last streamState event; None → use poll
@@ -419,7 +426,7 @@ class EufyStreamUrlSensor(EufySdkDeviceEntity, SensorEntity):
         rtsp_on = self.device.get("state", {}).get("rtspStream") is True
         if not self._streaming and not rtsp_on:
             return None
-        return f"rtsp://{self._host}:{GO2RTC_RTSP_PORT}/{self._sn}"
+        return f"rtsp://{self._host}:{self._port}/{self._sn}"
 
 
 class EufyLightEffectSensor(EufySdkDeviceEntity, SensorEntity):

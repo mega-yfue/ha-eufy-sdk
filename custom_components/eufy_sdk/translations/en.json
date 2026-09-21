@@ -3,10 +3,24 @@
     "step": {
       "user": {
         "title": "Connect to the eufy bridge",
-        "description": "Enter the host and port of your ha-eufy-sdk bridge (the WebSocket).",
+        "description": "Enter the host and port of your ha-eufy-sdk bridge. The RTSP port is the published host port for go2rtc.",
         "data": {
           "host": "Host",
-          "port": "Port"
+          "port": "Port",
+          "go2rtc_rtsp_port": "RTSP port"
+        }
+      },
+      "hassio_confirm": {
+        "title": "Set up discovered eufy bridge",
+        "description": "Home Assistant discovered the eufy-sdk bridge add-on at {host}. Camera streams will use RTSP at {rtsp}."
+      },
+      "reconfigure": {
+        "title": "Reconfigure the eufy bridge",
+        "description": "Update the bridge host/port or the published go2rtc RTSP port.",
+        "data": {
+          "host": "Host",
+          "port": "Port",
+          "go2rtc_rtsp_port": "RTSP port"
         }
       },
       "twofa": {
@@ -38,6 +52,7 @@
     "abort": {
       "already_configured": "This bridge is already configured.",
       "cannot_connect": "Could not reach the bridge.",
+      "invalid_discovery_info": "The eufy bridge add-on sent incomplete discovery information.",
       "reauth_successful": "The bridge is authenticated again."
     }
   },
@@ -45,7 +60,7 @@
     "step": {
       "init": {
         "title": "eufy bridge options",
-        "description": "How often the bridge polls the eufy cloud for device state. Lower is fresher but adds cloud traffic; the cloud itself only updates every few minutes.",
+        "description": "Adjust how often the bridge polls the eufy cloud for device state.",
         "data": {
           "poll_interval_minutes": "Cloud poll interval (minutes)"
         }
