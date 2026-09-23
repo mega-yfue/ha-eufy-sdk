@@ -14,12 +14,14 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.loader import async_get_loaded_integration
 
 from .api import EufySdkApiClient
+from .arming_sync import apply_arming_mode_event
 from .const import (
     CONF_HOST,
     CONF_POLL_INTERVAL,
     CONF_PORT,
     DEFAULT_POLL_INTERVAL_MIN,
     DOMAIN,
+    EVENT_TYPE,
     LOGGER,
 )
 from .coordinator import EufySdkDataUpdateCoordinator
@@ -41,6 +43,9 @@ PLATFORMS: list[Platform] = [
     Platform.IMAGE,
     Platform.EVENT,
     Platform.LIGHT,
+    Platform.LOCK,
+    Platform.ALARM_CONTROL_PANEL,
+    Platform.SIREN,
 ]
 
 
@@ -66,8 +71,26 @@ async def async_setup_entry(hass: HomeAssistant, entry: EufySdkConfigEntry) -> b
         hass.async_create_task(coordinator.async_request_refresh())
 
     def _on_event(evt: dict) -> None:
-        hass.bus.async_fire(f"{DOMAIN}_event", evt)
-        if evt.get("event") == "ready":
+        hass.bus.async_fire(EVENT_TYPE, evt)
+        event = evt.get("event")
+        if event == "contactState":
+            sn = evt.get("deviceSn") or evt.get("sn")
+            if sn and sn in coordinator.data and "open" in evt:
+                coordinator.data[sn].setdefault("state", {})["contact"] = bool(
+                    evt.get("open")
+                )
+                coordinator.async_update_listeners()
+        elif event == "armingModeChanged":
+            serial = evt.get("deviceSn") or evt.get("sn")
+            if "mode" in evt:
+                apply_arming_mode_event(coordinator, evt)
+            elif serial and serial in coordinator.data:
+                entry.async_create_background_task(
+                    hass,
+                    coordinator.async_request_refresh(),
+                    "arming mode refresh",
+                )
+        elif event == "ready":
             _refresh_now()
 
     client = EufySdkApiClient(

@@ -1,0 +1,155 @@
+{
+  "entity": {
+    "binary_sensor": {
+      "streaming": {
+        "name": "Streaming"
+      },
+      "connectivity": {
+        "name": "Connettività"
+      }
+    },
+    "button": {
+      "reboot": {
+        "name": "Riavvia"
+      },
+      "refresh_last_event": {
+        "name": "Aggiorna ultimo evento"
+      },
+      "tilt_up": {
+        "name": "Inclina in alto"
+      },
+      "tilt_down": {
+        "name": "Inclina in basso"
+      },
+      "pan_left": {
+        "name": "Ruota a sinistra"
+      },
+      "pan_right": {
+        "name": "Ruota a destra"
+      },
+      "preset_goto": {
+        "name": "Vai al preset"
+      }
+    },
+    "event": {
+      "doorbell": {
+        "name": "Campanello"
+      },
+      "detection": {
+        "name": "Rilevamento"
+      }
+    },
+    "image": {
+      "last_event": {
+        "name": "Ultimo evento"
+      }
+    },
+    "select": {
+      "preset": {
+        "name": "Preset"
+      }
+    },
+    "sensor": {
+      "info": {
+        "name": "Informazioni"
+      },
+      "last_person": {
+        "name": "Ultima persona"
+      },
+      "stream_url": {
+        "name": "URL dello stream"
+      },
+      "light_effect": {
+        "name": "Effetto luce"
+      }
+    },
+    "switch": {
+      "detect_human": {
+        "name": "Rileva persone"
+      },
+      "detect_vehicle": {
+        "name": "Rileva veicoli"
+      },
+      "detect_pet": {
+        "name": "Rileva animali"
+      },
+      "face_recognition": {
+        "name": "Riconoscimento volti"
+      }
+    }
+  },
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connessione al bridge eufy",
+        "description": "Inserisci host e porta del tuo bridge ha-eufy-sdk (il WebSocket).",
+        "data": {
+          "host": "Host",
+          "port": "Porta"
+        }
+      },
+      "twofa": {
+        "title": "Autenticazione a due fattori",
+        "description": "Un codice di verifica è stato inviato al tuo account eufy. Inseriscilo qui sotto (spunta Invia di nuovo per richiederne un altro).",
+        "data": {
+          "code": "Codice di verifica",
+          "resend": "Invia di nuovo il codice"
+        }
+      },
+      "captcha": {
+        "title": "Captcha",
+        "description": "Inserisci i caratteri dell'immagine qui sotto (spunta Aggiorna per averne una nuova).\n\n{image}",
+        "data": {
+          "answer": "Captcha",
+          "refresh": "Aggiorna immagine"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Nuova autenticazione del bridge eufy",
+        "description": "Il bridge su {host} deve accedere di nuovo: la sua sessione è scaduta, quindi eufy chiede 2FA o captcha. Verifica che il bridge sia in esecuzione e raggiungibile, poi conferma per proseguire."
+      }
+    },
+    "error": {
+      "cannot_connect": "Impossibile raggiungere il bridge su questo host e porta.",
+      "invalid_2fa": "Codice di verifica non accettato.",
+      "invalid_captcha": "Captcha non accettato."
+    },
+    "abort": {
+      "already_configured": "Questo bridge è già configurato.",
+      "cannot_connect": "Impossibile raggiungere il bridge.",
+      "reauth_successful": "Il bridge è di nuovo autenticato."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opzioni del bridge eufy",
+        "description": "Ogni quanto il bridge interroga il cloud eufy per conoscere lo stato dei dispositivi. Un intervallo breve dà dati più aggiornati ma aumenta il traffico verso il cloud, che comunque si aggiorna solo ogni pochi minuti.",
+        "data": {
+          "poll_interval_minutes": "Intervallo di interrogazione del cloud (minuti)"
+        }
+      }
+    }
+  },
+  "device_automation": {
+    "trigger_type": {
+      "ringing": "Campanello suonato",
+      "motion": "Movimento rilevato",
+      "person": "Persona rilevata",
+      "pet": "Animale rilevato",
+      "dog": "Cane rilevato",
+      "vehicle": "Veicolo rilevato",
+      "stranger": "Sconosciuto rilevato",
+      "sound": "Suono rilevato",
+      "crying": "Pianto rilevato",
+      "package_delivered": "Pacco consegnato",
+      "package_taken": "Pacco ritirato",
+      "package_stranded": "Pacco lasciato incustodito"
+    }
+  },
+  "exceptions": {
+    "preset_empty": {
+      "message": "Il preset {slot} non ha una posizione salvata: creala prima dall’app eufy."
+    }
+  }
+}

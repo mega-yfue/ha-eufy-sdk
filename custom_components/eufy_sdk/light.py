@@ -152,7 +152,7 @@ class EufySdkSmartLight(EufySdkDeviceEntity, LightEntity):
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Apply effect/colour/brightness if given, then ensure power on."""
-        client = self.coordinator.config_entry.runtime_data.client
+        client = self.client
         if ATTR_EFFECT in kwargs and kwargs[ATTR_EFFECT] in self._effect_by_name:
             name = kwargs[ATTR_EFFECT]
             self._assumed_effect = name
@@ -173,7 +173,7 @@ class EufySdkSmartLight(EufySdkDeviceEntity, LightEntity):
 
     async def async_turn_off(self, **_: Any) -> None:
         """Turn the run off."""
-        client = self.coordinator.config_entry.runtime_data.client
+        client = self.client
         self._assumed_on = False
         await client.set_property(self._sn, POWER, value=False)
         self.async_write_ha_state()

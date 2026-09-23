@@ -18,14 +18,13 @@ from homeassistant.components.homeassistant.triggers import event as event_trigg
 from homeassistant.const import CONF_DEVICE_ID, CONF_DOMAIN, CONF_PLATFORM, CONF_TYPE
 from homeassistant.helpers import device_registry as dr
 
-from .const import DOMAIN
+from .const import DOMAIN, EVENT_TYPE
 
 if TYPE_CHECKING:
     from homeassistant.core import CALLBACK_TYPE, HomeAssistant
     from homeassistant.helpers.trigger import TriggerActionType, TriggerInfo
     from homeassistant.helpers.typing import ConfigType
 
-EVENT_TYPE = f"{DOMAIN}_event"
 
 # device-trigger type -> (bus event name, required capability). Gated so a device only
 # offers triggers for events it can actually emit.

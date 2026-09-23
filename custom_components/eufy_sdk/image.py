@@ -13,7 +13,7 @@ from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.util import dt as dt_util
 
-from .const import CONF_HOST, CONF_PORT, DOMAIN
+from .const import CONF_HOST, CONF_PORT, EVENT_TYPE
 from .entity import EufySdkDeviceEntity
 from .pushmap import EVENT_IMAGE_REFRESH, THUMBNAIL_EVENTS
 
@@ -25,7 +25,6 @@ if TYPE_CHECKING:
     from .data import EufySdkConfigEntry
 
 # Bridge device events are re-fired on the HA bus under this type (see __init__.py).
-EVENT_TYPE = f"{DOMAIN}_event"
 
 
 async def async_setup_entry(
@@ -57,7 +56,7 @@ class EufySdkEventImage(EufySdkDeviceEntity, ImageEntity):
     thumbnail shows even before the first event.
     """
 
-    _attr_name = "Last event"
+    _attr_translation_key = "last_event"
 
     def __init__(
         self,

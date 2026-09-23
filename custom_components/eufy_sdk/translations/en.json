@@ -1,4 +1,83 @@
 {
+  "entity": {
+    "binary_sensor": {
+      "streaming": {
+        "name": "Streaming"
+      },
+      "connectivity": {
+        "name": "Connectivity"
+      }
+    },
+    "button": {
+      "reboot": {
+        "name": "Reboot"
+      },
+      "refresh_last_event": {
+        "name": "Refresh Last Event"
+      },
+      "tilt_up": {
+        "name": "Tilt up"
+      },
+      "tilt_down": {
+        "name": "Tilt down"
+      },
+      "pan_left": {
+        "name": "Pan left"
+      },
+      "pan_right": {
+        "name": "Pan right"
+      },
+      "preset_goto": {
+        "name": "Go to preset"
+      }
+    },
+    "event": {
+      "doorbell": {
+        "name": "Doorbell"
+      },
+      "detection": {
+        "name": "Detection"
+      }
+    },
+    "image": {
+      "last_event": {
+        "name": "Last event"
+      }
+    },
+    "select": {
+      "preset": {
+        "name": "Preset"
+      }
+    },
+    "sensor": {
+      "info": {
+        "name": "Info"
+      },
+      "last_person": {
+        "name": "Last person"
+      },
+      "stream_url": {
+        "name": "Stream URL"
+      },
+      "light_effect": {
+        "name": "Light Effect"
+      }
+    },
+    "switch": {
+      "detect_human": {
+        "name": "Detect human"
+      },
+      "detect_vehicle": {
+        "name": "Detect vehicle"
+      },
+      "detect_pet": {
+        "name": "Detect pet"
+      },
+      "face_recognition": {
+        "name": "Face recognition"
+      }
+    }
+  },
   "config": {
     "step": {
       "user": {
@@ -47,9 +126,18 @@
         "title": "eufy bridge options",
         "description": "How often the bridge polls the eufy cloud for device state. Lower is fresher but adds cloud traffic; the cloud itself only updates every few minutes.",
         "data": {
-          "poll_interval_minutes": "Cloud poll interval (minutes)"
+          "poll_interval_minutes": "Cloud poll interval (minutes)",
+          "soc_refresh_seconds": "Solarbank SOC-limit refresh (seconds)"
+        },
+        "data_description": {
+          "soc_refresh_seconds": "How often HA re-reads a Solarbank's discharge/charge limits from the cloud, so an app-side change reflects on the sliders. Only applies if you have a Solarbank."
         }
       }
+    }
+  },
+  "exceptions": {
+    "preset_empty": {
+      "message": "Preset {slot} has no stored position. Save one there from the eufy app first."
     }
   },
   "device_automation": {

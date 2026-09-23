@@ -1,0 +1,51 @@
+name: Test
+
+on:
+  push:
+    branches:
+      - "main"
+      - "dev"
+  pull_request:
+    branches:
+      - "main"
+      - "dev"
+
+permissions: {}
+
+jobs:
+  test:
+    name: "Unit tests"
+    runs-on: "ubuntu-latest"
+    permissions:
+      contents: read # private repo: checkout needs read, stripped by top-level permissions: {}
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.14" # HA 2026.x requires >=3.14.2; matches lint.yml. test_setup_events imports the integration
+          cache: "pip"
+          cache-dependency-path: |
+            requirements_common.txt
+            requirements_dev.txt
+
+      - name: Install requirements
+        run: |
+          python3 -m pip install -r requirements_common.txt   # integration runtime deps (so it imports)
+          python3 -m pip install -r requirements_dev.txt       # homeassistant + lint (via -r)
+          python3 -m pip install pytest                        # runner only; the tests themselves are unittest-based
+
+      - name: Run tests
+        run: |
+          # The suite is unittest-based (no pytest dep). Run from the repo root so `custom_components`
+          # imports. Guard on tests existing so this workflow can land before the first test PR without
+          # a spurious "no tests collected" failure; it gates for real the moment tests are present.
+          if ls tests/test_*.py >/dev/null 2>&1; then
+            python3 -m pytest tests/ -q   # `python -m` puts the repo root on sys.path so the integration imports; pytest needs no tests/__init__.py
+          else
+            echo "No tests found under tests/ yet — nothing to run."
+          fi

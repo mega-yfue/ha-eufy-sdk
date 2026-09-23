@@ -207,6 +207,56 @@ class EufySdkApiClient:
         # Each: {sn, productCode, name, category, capabilities, values, firmware}.
         return (await self.rpc("solix.devices")).get("devices", [])
 
+    async def set_solix_light(self, sn: str, *, on: bool) -> None:
+        """Toggle a Solarbank's ambient light (encrypted set_device_attrs write)."""
+        await self.rpc("solix.setLight", deviceSn=sn, on=on)
+
+    async def get_solix_device_attrs(
+        self, sn: str, keys: list[str] | None = None
+    ) -> dict[str, Any]:
+        """Read a Solix device's attributes (e.g. screen_off_time) as a flat map."""
+        reply = await self.rpc("solix.getDeviceAttrs", deviceSn=sn, keys=keys or [])
+        return reply.get("attributes") or {}
+
+    async def set_solix_display_timeout(self, sn: str, index: int) -> None:
+        """Set a Solarbank display screen-off timeout by 1-based index (MQTT)."""
+        await self.rpc("solix.setDisplayTimeout", deviceSn=sn, index=index)
+
+    async def get_solix_power_cutoff(
+        self, sn: str, site_id: str = ""
+    ) -> list[dict[str, Any]]:
+        """Read the battery discharge-cutoff (minimum-SOC) preset options."""
+        # Each: {id, output_cutoff_data (SOC %), is_selected}.
+        reply = await self.rpc("solix.getPowerCutoff", deviceSn=sn, siteId=site_id)
+        return reply.get("options") or []
+
+    async def set_solix_power_cutoff(self, sn: str, cutoff_data_id: int) -> None:
+        """Select a discharge-cutoff preset by its device id."""
+        await self.rpc("solix.setPowerCutoff", deviceSn=sn, cutoffDataId=cutoff_data_id)
+
+    async def get_solix_soc_params(self, sn: str) -> dict[str, Any]:
+        """Read a Solarbank's SOC-limit block (discharge/charge limit, reserve)."""
+        # {chargeUpperLimit, dischargeLowerLimit, backupReserve, backupReserveSwitch,
+        #  socCalibrationEnable} — whole-percent ints, or {} if the site has no block.
+        reply = await self.rpc("solix.getSocParams", deviceSn=sn)
+        return reply.get("params") or {}
+
+    async def set_solix_soc_limits(
+        self,
+        sn: str,
+        *,
+        discharge: int | None = None,
+        charge: int | None = None,
+    ) -> dict[str, Any]:
+        """Write the discharge and/or charge limit (%); read-modify-write keeps rest."""
+        kwargs: dict[str, Any] = {"deviceSn": sn}
+        if discharge is not None:
+            kwargs["dischargeLowerLimit"] = int(discharge)
+        if charge is not None:
+            kwargs["chargeUpperLimit"] = int(charge)
+        reply = await self.rpc("solix.setSocLimits", **kwargs)
+        return reply.get("params") or {}
+
     async def get_properties(self, sn: str) -> list[dict[str, Any]]:
         """Return a device's property manifest (name/type/unit/writable/enumValues)."""
         return (await self.rpc("device.properties", sn=sn))["properties"]
@@ -238,6 +288,19 @@ class EufySdkApiClient:
         """
         reply = await self.rpc("device.action", sn=sn, action=action, args=list(args))
         return reply.get("result")
+
+    async def preset_slots(self, sn: str) -> list[dict[str, Any]]:
+        """
+        Read a camera's stored preset positions.
+
+        A P2P request/reply rather than a cloud read, so it answers only while the
+        camera is awake — a sleeping battery camera times out. Hence the longer
+        timeout, and callers that treat a failure as "ask again later".
+        """
+        reply = await self.rpc(
+            "device.action", timeout=45, sn=sn, action="preset.list", args=[]
+        )
+        return reply.get("result") or []
 
     async def set_property(self, sn: str, name: str, value: Any) -> None:
         """Write a device property."""

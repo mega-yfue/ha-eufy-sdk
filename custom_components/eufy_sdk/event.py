@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 from homeassistant.components.event import EventDeviceClass, EventEntity
 from homeassistant.core import callback
 
-from .const import DOMAIN
+from .const import EVENT_TYPE
 from .entity import EufySdkDeviceEntity
 from .pushmap import (
     DETECTION_CAPABILITIES,
@@ -22,8 +22,6 @@ if TYPE_CHECKING:
 
     from .coordinator import EufySdkDataUpdateCoordinator
     from .data import EufySdkConfigEntry
-
-EVENT_TYPE = f"{DOMAIN}_event"
 
 
 async def async_setup_entry(
@@ -72,7 +70,7 @@ class _EufySdkBusEvent(EufySdkDeviceEntity, EventEntity):
 class EufySdkDoorbellEvent(_EufySdkBusEvent):
     """A doorbell press as an event entity."""
 
-    _attr_name = "Doorbell"
+    _attr_translation_key = "doorbell"
     _attr_device_class = EventDeviceClass.DOORBELL
 
     def __init__(self, coordinator: EufySdkDataUpdateCoordinator, sn: str) -> None:
@@ -89,7 +87,7 @@ class EufySdkDoorbellEvent(_EufySdkBusEvent):
 class EufySdkDetectionEvent(_EufySdkBusEvent):
     """The device's discrete detection events (pet / vehicle / package / sound / …)."""
 
-    _attr_name = "Detection"
+    _attr_translation_key = "detection"
 
     def __init__(self, coordinator: EufySdkDataUpdateCoordinator, sn: str) -> None:
         """Bind to a camera-class device."""

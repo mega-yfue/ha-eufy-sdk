@@ -1,0 +1,159 @@
+{
+  "entity": {
+    "binary_sensor": {
+      "streaming": {
+        "name": "Streaming"
+      },
+      "connectivity": {
+        "name": "Connectiviteit"
+      }
+    },
+    "button": {
+      "reboot": {
+        "name": "Herstarten"
+      },
+      "refresh_last_event": {
+        "name": "Laatste gebeurtenis vernieuwen"
+      },
+      "tilt_up": {
+        "name": "Kantelen omhoog"
+      },
+      "tilt_down": {
+        "name": "Kantelen omlaag"
+      },
+      "pan_left": {
+        "name": "Draaien naar links"
+      },
+      "pan_right": {
+        "name": "Draaien naar rechts"
+      },
+      "preset_goto": {
+        "name": "Ga naar voorinstelling"
+      }
+    },
+    "event": {
+      "doorbell": {
+        "name": "Deurbel"
+      },
+      "detection": {
+        "name": "Detectie"
+      }
+    },
+    "image": {
+      "last_event": {
+        "name": "Laatste gebeurtenis"
+      }
+    },
+    "select": {
+      "preset": {
+        "name": "Voorinstelling"
+      }
+    },
+    "sensor": {
+      "info": {
+        "name": "Info"
+      },
+      "last_person": {
+        "name": "Laatste persoon"
+      },
+      "stream_url": {
+        "name": "Stream-URL"
+      },
+      "light_effect": {
+        "name": "Lichteffect"
+      }
+    },
+    "switch": {
+      "detect_human": {
+        "name": "Mens detecteren"
+      },
+      "detect_vehicle": {
+        "name": "Voertuig detecteren"
+      },
+      "detect_pet": {
+        "name": "Huisdier detecteren"
+      },
+      "face_recognition": {
+        "name": "Gezichtsherkenning"
+      }
+    }
+  },
+  "config": {
+    "step": {
+      "user": {
+        "title": "Verbinden met de eufy-bridge",
+        "description": "Voer het host-adres en de poort van je ha-eufy-sdk-bridge in (de WebSocket).",
+        "data": {
+          "host": "Host",
+          "port": "Poort"
+        }
+      },
+      "twofa": {
+        "title": "Tweestapsverificatie",
+        "description": "Er is een verificatiecode naar je eufy-account gestuurd. Voer deze hieronder in (vink Opnieuw verzenden aan om een nieuwe aan te vragen).",
+        "data": {
+          "code": "Verificatiecode",
+          "resend": "Code opnieuw verzenden"
+        }
+      },
+      "captcha": {
+        "title": "Captcha",
+        "description": "Voer de tekens over van de onderstaande afbeelding (vink Vernieuwen aan voor een nieuwe).\n\n{image}",
+        "data": {
+          "answer": "Captcha",
+          "refresh": "Afbeelding vernieuwen"
+        }
+      },
+      "reauth_confirm": {
+        "title": "De eufy-bridge opnieuw verifiëren",
+        "description": "De bridge op {host} moet opnieuw inloggen (de sessie is verlopen, waardoor eufy om 2FA/captcha vraagt). Zorg dat de bridge actief en bereikbaar is en verzend daarna om door te gaan."
+      }
+    },
+    "error": {
+      "cannot_connect": "Kon de bridge niet bereiken op dat host-adres/die poort.",
+      "invalid_2fa": "Die verificatiecode werd niet geaccepteerd.",
+      "invalid_captcha": "Die captcha werd niet geaccepteerd."
+    },
+    "abort": {
+      "already_configured": "Deze bridge is al geconfigureerd.",
+      "cannot_connect": "Kon de bridge niet bereiken.",
+      "reauth_successful": "De bridge is opnieuw geverifieerd."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opties voor de eufy-bridge",
+        "description": "Hoe vaak de bridge de eufy-cloud bevraagt voor de apparaatstatus. Lager is actueler maar geeft meer cloudverkeer; de cloud zelf werkt toch maar om de paar minuten bij.",
+        "data": {
+          "poll_interval_minutes": "Cloud-pollinterval (minuten)",
+          "soc_refresh_seconds": "Vernieuwingsinterval Solarbank SOC-limiet (seconden)"
+        },
+        "data_description": {
+          "soc_refresh_seconds": "Hoe vaak HA de laad-/ontlaadlimieten van een Solarbank opnieuw uitleest uit de cloud, zodat een wijziging via de app zichtbaar wordt op de schuifregelaars. Geldt alleen als je een Solarbank hebt."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "preset_empty": {
+      "message": "Voorinstelling {slot} heeft geen opgeslagen positie. Sla er eerst één op via de eufy-app."
+    }
+  },
+  "device_automation": {
+    "trigger_type": {
+      "ringing": "Deurbel gaat",
+      "motion": "Beweging gedetecteerd",
+      "person": "Persoon gedetecteerd",
+      "pet": "Huisdier gedetecteerd",
+      "dog": "Hond gedetecteerd",
+      "vehicle": "Voertuig gedetecteerd",
+      "stranger": "Onbekende gedetecteerd",
+      "sound": "Geluid gedetecteerd",
+      "crying": "Huilen gedetecteerd",
+      "package_delivered": "Pakket bezorgd",
+      "package_taken": "Pakket meegenomen",
+      "package_stranded": "Pakket ligt nog buiten"
+    }
+  }
+}

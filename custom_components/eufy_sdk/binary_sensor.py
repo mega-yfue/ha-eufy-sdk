@@ -10,13 +10,17 @@ from homeassistant.components.binary_sensor import (
 )
 from homeassistant.const import EntityCategory
 from homeassistant.core import callback
-from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
+from .const import EVENT_TYPE
 from .coordinator import EufySdkDataUpdateCoordinator
-from .entity import EufySdkDeviceEntity, EufySdkPropertyEntity, classify
+from .entity import (
+    EufySdkDeviceEntity,
+    EufySdkPropertyEntity,
+    classify,
+    solix_device_info,
+)
 from .pushmap import MOTION_EVENTS, PUSH_AUTO_OFF_SECONDS, PUSH_BINARY_SENSORS
 
 if TYPE_CHECKING:
@@ -25,7 +29,6 @@ if TYPE_CHECKING:
 
     from .data import EufySdkConfigEntry
 
-EVENT_TYPE = f"{DOMAIN}_event"
 
 # Infer a device_class from the property name (substring match, first hit wins).
 _DEVICE_CLASS_BY_NAME: list[tuple[str, BinarySensorDeviceClass]] = [
@@ -172,7 +175,7 @@ class EufyStreamingBinarySensor(EufySdkDeviceEntity, BinarySensorEntity):
     """ON while a live P2P feed is active (the camera is being streamed)."""
 
     _attr_device_class = BinarySensorDeviceClass.RUNNING
-    _attr_name = "Streaming"
+    _attr_translation_key = "streaming"
 
     def __init__(
         self,
@@ -227,17 +230,9 @@ class EufySolixConnectivitySensor(
         """Bind to a Solix serial; build its Anker Solix device_info."""
         super().__init__(coordinator)
         self._sn = sn
-        dev = coordinator.solix_devices.get(sn, {})
         self._attr_unique_id = f"solix_{sn}_connectivity"
-        self._attr_name = "Connectivity"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, f"solix:{sn}")},
-            name=dev.get("name") or sn,
-            manufacturer="Anker Solix",
-            model=dev.get("productCode"),
-            sw_version=dev.get("firmware"),
-            serial_number=sn,
-        )
+        self._attr_translation_key = "connectivity"
+        self._attr_device_info = solix_device_info(coordinator, sn)
 
     @property
     def is_on(self) -> bool:

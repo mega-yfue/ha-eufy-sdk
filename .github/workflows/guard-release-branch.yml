@@ -1,0 +1,59 @@
+# Keep the release branch (`main`) maintainer-only.
+#
+# Contributions go to `dev` (branch → PR → dev); `main` is only advanced by a maintainer at release
+# time. So when someone WITHOUT write access opens a PR straight against `main`, this closes it with a
+# friendly note pointing them at `dev`, rather than leaving it to sit and confuse everyone.
+#
+# Who is exempt: anyone whose `author_association` is OWNER / MEMBER / COLLABORATOR (a maintainer doing
+# a release or a hotfix), and bots (Dependabot etc., which target the default branch by design).
+#
+# `pull_request_target` runs in the BASE repo with a write token even for fork PRs — which is why it can
+# comment + close. It deliberately does NOT check out or run any PR code (only `gh` on PR metadata), so
+# there is no untrusted-code path. The `branches: [main]` filter means a PR to `dev` never trips it.
+#
+# NOTE: a `pull_request_target` workflow runs the copy of this file on the PR's BASE branch, so this
+# guard only takes effect once it exists on `main`.
+name: Guard the release branch
+
+on:
+  pull_request_target:
+    types: [opened, reopened]
+    branches: [main]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    # Skip maintainers and bots — only outside contributors get redirected.
+    if: >-
+      github.event.pull_request.user.type != 'Bot' &&
+      !contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association)
+    steps:
+      - name: Close and point the author at dev
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: |
+          # Body built via a quoted heredoc so backticks/`$` stay literal and the markdown is clean; the
+          # author (a GitHub username, safe charset) is substituted in afterwards, never interpolated into
+          # the shell.
+          cat > /tmp/guard-body.md <<'EOF'
+          Hi @__AUTHOR__ — thanks for the contribution! 🙌
+
+          This repo keeps `main` as the **release branch**, advanced only by a maintainer at release time. All contributions land on **`dev`** first (branch → PR → `dev`), so I'm closing this one automatically.
+
+          Please reopen it against `dev`:
+          - Edit this PR's base branch to `dev` and reopen it, **or**
+          - move your branch onto `dev` — `git rebase --onto origin/dev origin/main <your-branch>` — and open a fresh PR to `dev`.
+
+          Nothing is lost — your commits are fine, this is only about the target branch. Thanks! 🐝
+
+          _(Automated — maintainers and bots are exempt.)_
+          EOF
+          sed -i "s/@__AUTHOR__/@${AUTHOR}/" /tmp/guard-body.md
+          gh pr comment "$PR" --repo "$REPO" --body-file /tmp/guard-body.md
+          gh pr close "$PR" --repo "$REPO"
