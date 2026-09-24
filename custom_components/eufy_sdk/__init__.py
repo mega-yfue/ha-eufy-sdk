@@ -10,12 +10,17 @@ from datetime import timedelta
 from typing import TYPE_CHECKING
 
 from homeassistant.const import Platform
+from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.event import async_call_later
 from homeassistant.loader import async_get_loaded_integration
 
+from .alarm_logic import PHASE_STOPPED
+from .alarm_sync import alarm_event_serial, apply_alarm_event, clear_alarm
 from .api import EufySdkApiClient
 from .arming_sync import apply_arming_mode_event
 from .const import (
+    ALARM_AUTO_CLEAR_SECONDS,
     CONF_HOST,
     CONF_POLL_INTERVAL,
     CONF_PORT,
@@ -28,7 +33,10 @@ from .coordinator import EufySdkDataUpdateCoordinator
 from .data import EufySdkData
 
 if TYPE_CHECKING:
-    from homeassistant.core import HomeAssistant
+    from collections.abc import Callable
+    from datetime import datetime
+
+    from homeassistant.core import CALLBACK_TYPE, HomeAssistant
 
     from .data import EufySdkConfigEntry
 
@@ -47,6 +55,47 @@ PLATFORMS: list[Platform] = [
     Platform.ALARM_CONTROL_PANEL,
     Platform.SIREN,
 ]
+
+
+def _alarm_lifecycle(
+    hass: HomeAssistant,
+    entry: EufySdkConfigEntry,
+    coordinator: EufySdkDataUpdateCoordinator,
+) -> Callable[[dict], None]:
+    """
+    Build the handler that folds a station's `alarm` pushes into its live state.
+
+    The hub pushes a stop when it silences its alarm from the app, the keypad or
+    itself, but NOT when a triggered duration simply runs out — so every start also
+    arms a fallback that clears the flags after ALARM_AUTO_CLEAR_SECONDS unless a
+    stop (or a new start, which re-arms it) gets there first.
+    """
+    timers: dict[str, CALLBACK_TYPE] = {}
+
+    def on_alarm(evt: dict) -> None:
+        phase = apply_alarm_event(coordinator, evt)
+        serial = alarm_event_serial(evt)
+        if phase is None or not serial:
+            return
+        if (cancel := timers.pop(serial, None)) is not None:
+            cancel()
+        if phase == PHASE_STOPPED:
+            return
+
+        @callback
+        def _auto_clear(_now: datetime, sn: str = serial) -> None:
+            timers.pop(sn, None)
+            clear_alarm(coordinator, sn)
+
+        timers[serial] = async_call_later(hass, ALARM_AUTO_CLEAR_SECONDS, _auto_clear)
+
+    def _cancel_all() -> None:
+        for cancel in timers.values():
+            cancel()
+        timers.clear()
+
+    entry.async_on_unload(_cancel_all)
+    return on_alarm
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: EufySdkConfigEntry) -> bool:
@@ -70,6 +119,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: EufySdkConfigEntry) -> b
     def _refresh_now() -> None:
         hass.async_create_task(coordinator.async_request_refresh())
 
+    on_alarm = _alarm_lifecycle(hass, entry, coordinator)
+
     def _on_event(evt: dict) -> None:
         hass.bus.async_fire(EVENT_TYPE, evt)
         event = evt.get("event")
@@ -90,6 +141,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: EufySdkConfigEntry) -> b
                     coordinator.async_request_refresh(),
                     "arming mode refresh",
                 )
+        elif event == "alarm":
+            on_alarm(evt)
         elif event == "ready":
             _refresh_now()
 
