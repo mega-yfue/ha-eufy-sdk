@@ -28,8 +28,28 @@ class ArmingModeRealtimeTests(unittest.TestCase):
 
         self.assertTrue(changed)
         self.assertEqual(coordinator.data["homebase"]["state"]["armingMode"], 4)
+        self.assertEqual(coordinator.data["homebase"]["state"]["currentMode"], 4)
         coordinator.async_update_listeners.assert_called_once_with()
         self.assertEqual(coordinator.data["camera"], {"state": {"motion": False}})
+
+    def test_set_and_enforced_modes_are_kept_apart(self):
+        # A schedule transition: the hub is still SET to schedule (2) but now ENFORCES
+        # custom1 (3) — the MODE_SWITCH push says both.
+        coordinator = Mock(data={"homebase": {"state": {"armingMode": 2}}})
+
+        changed = _MODULE.apply_arming_mode_event(
+            coordinator,
+            {
+                "event": "armingModeChanged",
+                "deviceSn": "homebase",
+                "arming": 2,
+                "mode": 3,
+            },
+        )
+
+        self.assertTrue(changed)
+        self.assertEqual(coordinator.data["homebase"]["state"]["armingMode"], 2)
+        self.assertEqual(coordinator.data["homebase"]["state"]["currentMode"], 3)
 
     def test_valued_event_for_unknown_device_is_ignored(self):
         coordinator = Mock(data={"homebase": {"state": {"armingMode": 1}}})
