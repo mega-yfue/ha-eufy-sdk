@@ -34,6 +34,12 @@ DEFAULT_SOC_REFRESH_SEC = 60
 # Schema version this integration targets (the bridge sends its own in `hello`/`ready`).
 SUPPORTED_SCHEMA = 1
 
+# A HomeBase pushes `alarm` when its siren starts and when it is silenced from the app,
+# the keypad or the hub itself — but not when a triggered duration merely runs out. So a
+# start also arms this fallback, after which the alarm flags clear on their own. Longer
+# than any duration the app lets you set, so it never cuts a real alarm short.
+ALARM_AUTO_CLEAR_SECONDS = 600
+
 # How many preset slots to offer before the camera has ever been asked. A last
 # resort, not the normal path: the slots are read from the camera (see presets.py)
 # and the select remembers the last answer across restarts, so this count is only

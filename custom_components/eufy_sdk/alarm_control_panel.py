@@ -17,7 +17,7 @@ from .alarm_logic import (
     MODE_CUSTOM_3,
     MODE_DISARMED,
     MODE_HOME,
-    alarm_state_for_raw,
+    panel_state_for,
 )
 from .entity import EufySdkDeviceEntity, has_capability
 
@@ -63,8 +63,14 @@ class EufySdkAlarmControlPanel(EufySdkDeviceEntity, AlarmControlPanelEntity):
 
     @property
     def alarm_state(self) -> AlarmControlPanelState | None:
-        """Return the explicit Eufy-to-HA state mapping."""
-        state = alarm_state_for_raw(self.device.get("state", {}).get("armingMode"))
+        """
+        The explicit Eufy-to-HA mapping, with the alarm lifecycle layered on top.
+
+        `triggered` while the hub reports its alarm sounding and `pending` during an
+        entry/exit delay — both come from the `alarm` push (see alarm_sync) and clear on
+        the hub's own stop push or the auto-clear fallback.
+        """
+        state = panel_state_for(self.device.get("state", {}))
         return AlarmControlPanelState(state) if state is not None else None
 
     async def _set_mode(self, raw: int) -> None:
