@@ -22,6 +22,11 @@ from .entity import (
     remove_stale_solix_entities,
     solix_devices_with,
 )
+from .snapshot_policy import (
+    SNAPSHOT_POLICY_DEFAULT,
+    SNAPSHOT_POLICY_OPTIONS,
+    normalize_snapshot_policy,
+)
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -80,6 +85,11 @@ async def async_setup_entry(
         for sn, dev in coordinator.data.items()
         if has_capability(dev, "ptz")
     )
+    entities.extend(
+        EufySdkSnapshotPolicySelect(coordinator, sn)
+        for sn, dev in coordinator.data.items()
+        if dev.get("stream")
+    )
     async_add_entities(entities)
 
 
@@ -115,6 +125,42 @@ class EufySdkSelect(EufySdkPropertyEntity, SelectEntity):
         # Send an int when the raw code is numeric, else the raw string.
         value: int | str = int(raw) if raw.lstrip("-").isdigit() else raw
         await self.write(value)
+
+
+class EufySdkSnapshotPolicySelect(EufySdkDeviceEntity, SelectEntity, RestoreEntity):
+    """Choose this camera's local snapshot acquisition policy."""
+
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_icon = "mdi:camera-retake"
+    _attr_options: ClassVar[list[str]] = list(SNAPSHOT_POLICY_OPTIONS)
+    _attr_translation_key = "snapshot_policy"
+
+    def __init__(self, coordinator: EufySdkDataUpdateCoordinator, sn: str) -> None:
+        """Bind a local policy to one camera's stable device identity."""
+        super().__init__(coordinator, sn)
+        self._attr_unique_id = f"{sn}_snapshot_policy"
+        self._attr_current_option = SNAPSHOT_POLICY_DEFAULT
+
+    async def async_added_to_hass(self) -> None:
+        """Restore the local choice without querying or writing the camera."""
+        await super().async_added_to_hass()
+        last = await self.async_get_last_state()
+        self._attr_current_option = normalize_snapshot_policy(
+            last.state if last else None
+        )
+        self._publish()
+
+    async def async_select_option(self, option: str) -> None:
+        """Store the local choice and never send it through the device API."""
+        self._attr_current_option = normalize_snapshot_policy(option)
+        self._publish()
+        self.async_write_ha_state()
+
+    def _publish(self) -> None:
+        """Make the local choice available to this entry's camera entities."""
+        self.coordinator.config_entry.runtime_data.snapshot_policy[self._sn] = (
+            self._attr_current_option
+        )
 
 
 class EufySolixScreenOffSelect(EufySolixEntity, SelectEntity):

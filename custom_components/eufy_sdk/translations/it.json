@@ -50,6 +50,15 @@
     "select": {
       "preset": {
         "name": "Preset"
+      },
+      "snapshot_policy": {
+        "name": "Modalità snapshot",
+        "state": {
+          "default": "Predefinita",
+          "auto": "Automatica",
+          "stored": "Salvata",
+          "live": "Dal vivo"
+        }
       }
     },
     "sensor": {
