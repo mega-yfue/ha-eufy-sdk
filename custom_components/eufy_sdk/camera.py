@@ -11,6 +11,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import ATTRIBUTION, CONF_HOST, CONF_PORT, DOMAIN
+from .entity import device_offline
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -72,8 +73,12 @@ class EufySdkCamera(CoordinatorEntity["EufySdkDataUpdateCoordinator"], Camera):
 
     @property
     def available(self) -> bool:
-        """Available while the bridge still reports this camera."""
-        return super().available and self._sn in self.coordinator.data
+        """Available while the bridge still reports this camera and it isn't offline."""
+        return (
+            super().available
+            and self._sn in self.coordinator.data
+            and not device_offline(self.coordinator.data.get(self._sn))
+        )
 
     async def stream_source(self) -> str:
         """Return the go2rtc RTSP URL — HA's stream component + go2rtc do the work."""

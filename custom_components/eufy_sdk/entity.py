@@ -212,10 +212,28 @@ class EufySdkDeviceEntity(CoordinatorEntity[EufySdkDataUpdateCoordinator]):
         """The bridge client this entity's config entry talks through."""
         return self.coordinator.config_entry.runtime_data.client
 
+    # Entities that exist to show the offline state itself (the Online sensor) opt out.
+    _follows_device_online = True
+
     @property
     def available(self) -> bool:
-        """Available while the bridge still reports this device."""
-        return super().available and self._sn in self.coordinator.data
+        """Available while the bridge still reports this device and it isn't offline."""
+        return (
+            super().available
+            and self._sn in self.coordinator.data
+            and not (self._follows_device_online and device_offline(self.device))
+        )
+
+
+def device_offline(record: dict | None) -> bool:
+    """
+    Whether the cloud reports this device offline (`deviceStatus` is False).
+
+    Only devices that report `deviceStatus` (battery cameras, HomeBase-attached
+    devices) can be offline here. Where the key is missing the state is unknown,
+    and unknown is not offline, so those devices stay available as before.
+    """
+    return (record or {}).get("state", {}).get("deviceStatus") is False
 
 
 def label_for(prop: str) -> str:

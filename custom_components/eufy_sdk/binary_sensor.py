@@ -100,6 +100,14 @@ async def async_setup_entry(
         for sn, dev in coordinator.data.items()
         if "doorbell" in dev.get("capabilities", [])
     )
+    # An "Online" sensor per device that reports the cloud's `deviceStatus` (battery
+    # cameras, HomeBase-attached devices). The device's other entities go unavailable
+    # while it is offline; this one stays available so the offline state is visible.
+    entities.extend(
+        EufyOnlineBinarySensor(coordinator, sn)
+        for sn, dev in coordinator.data.items()
+        if dev.get("state", {}).get("deviceStatus") is not None
+    )
     # Anker Solix (separate account): a Wi-Fi connectivity sensor per device (polled).
     solix = getattr(coordinator, "solix_devices", {}) or {}
     entities.extend(
@@ -265,6 +273,32 @@ class EufyPackageBinarySensor(EufySdkDeviceEntity, BinarySensorEntity, RestoreEn
         else:
             return
         self.async_write_ha_state()
+
+
+class EufyOnlineBinarySensor(EufySdkDeviceEntity, BinarySensorEntity):
+    """
+    Whether the device is online, from the cloud's `deviceStatus` (device-list poll).
+
+    The eufy app shows such a device as offline, e.g. a battery camera that lost its
+    radio link to the HomeBase. This sensor stays available while the device is
+    offline, since that is the state it exists to show.
+    """
+
+    _attr_device_class = BinarySensorDeviceClass.CONNECTIVITY
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_translation_key = "connectivity"
+    _follows_device_online = False
+
+    def __init__(self, coordinator: EufySdkDataUpdateCoordinator, sn: str) -> None:
+        """Bind to a device serial."""
+        super().__init__(coordinator, sn)
+        self._attr_unique_id = f"{sn}_online"
+
+    @property
+    def is_on(self) -> bool | None:
+        """True while `deviceStatus` is True; None until the device reports it."""
+        status = self.device.get("state", {}).get("deviceStatus")
+        return None if status is None else bool(status)
 
 
 class EufySolixConnectivitySensor(
