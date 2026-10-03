@@ -10,10 +10,9 @@ degrades to a read-only diagnostic sensor — add an entry to give a param real 
 from __future__ import annotations
 
 # Bitfield properties we know how to split into per-bit switches.
-#   {property: {"base": <bits always kept set>, "bits": {translation_key: mask}}}
-# `base` is OR'd into every write (e.g. aiDetectType's 0x30000 "AI detection enabled"
-# flag), so toggling one class never clears enable. The keys name the entities through
-# the switch section of the translation files, so the names follow the user's language.
+# `base` is only a fallback before the device reports a current mask.
+# Once state is known, writes preserve that mask and only change the selected bit.
+# Different models can carry different enable/vendor bits in the same property.
 BITFIELD_SWITCHES: dict[str, dict] = {
     "aiDetectType": {
         "base": 0x30000,

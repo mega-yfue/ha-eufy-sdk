@@ -26,6 +26,7 @@ from .const import (
 )
 from .coordinator import EufySdkDataUpdateCoordinator
 from .data import EufySdkData
+from .property_sync import apply_property_changed_event
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -71,8 +72,26 @@ async def async_setup_entry(hass: HomeAssistant, entry: EufySdkConfigEntry) -> b
         hass.async_create_task(coordinator.async_request_refresh())
 
     def _on_event(evt: dict) -> None:
-        hass.bus.async_fire(EVENT_TYPE, evt)
         event = evt.get("event")
+
+        # Generic device-state changes arrive already decoded by the SDK. Apply
+        # valued changes directly so switches/selects/sensors update immediately;
+        # a valueless change only tells us to re-read that device's state.
+        if event == "propertyChanged":
+            result = apply_property_changed_event(coordinator, evt)
+            if result == "refresh":
+                serial = evt.get("deviceSn") or evt.get("sn")
+                if serial and serial in coordinator.data:
+                    entry.async_create_background_task(
+                        hass,
+                        coordinator.async_request_refresh(),
+                        f"{evt.get('property', 'property')} refresh",
+                    )
+
+        # Fire after applying direct state so entity listeners reacting to the bus
+        # already see the new coordinator value.
+        hass.bus.async_fire(EVENT_TYPE, evt)
+
         if event == "contactState":
             sn = evt.get("deviceSn") or evt.get("sn")
             if sn and sn in coordinator.data and "open" in evt:

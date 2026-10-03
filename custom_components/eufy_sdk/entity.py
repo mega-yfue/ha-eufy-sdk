@@ -296,6 +296,34 @@ class EufySdkPropertyEntity(EufySdkDeviceEntity):
         self._post_write_unsub: Callable[[], None] | None = None
         self._assumed_value: Any = None
 
+    async def async_added_to_hass(self) -> None:
+        """Subscribe to authoritative realtime updates for this property."""
+        await super().async_added_to_hass()
+        self.async_on_remove(
+            self.hass.bus.async_listen(EVENT_TYPE, self._handle_property_changed)
+        )
+
+    @callback
+    def _handle_property_changed(self, event: Event) -> None:
+        """Release an optimistic write as soon as real device state arrives."""
+        data = event.data
+        if data.get("event") != "propertyChanged":
+            return
+        if (data.get("deviceSn") or data.get("sn")) != self._sn:
+            return
+        if data.get("property") != self._prop:
+            return
+        if "value" not in data:
+            return
+
+        # This is authoritative inbound state from the SDK, whether it confirms
+        # our own write or represents a competing change made in the eufy app.
+        if self._post_write_unsub is not None:
+            self._post_write_unsub()
+            self._post_write_unsub = None
+        self._assumed_value = None
+        self.async_write_ha_state()
+
     @property
     def prop_value(self) -> Any:
         """The held optimistic value if set, else the device's live state."""
