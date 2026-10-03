@@ -13,13 +13,19 @@ import contextlib
 from typing import TYPE_CHECKING, Any
 
 import aiohttp
+from homeassistant.exceptions import HomeAssistantError
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
 
-class EufySdkApiClientError(Exception):
-    """A general bridge error."""
+class EufySdkApiClientError(HomeAssistantError):
+    """
+    A general bridge error.
+
+    A `HomeAssistantError`, so a failed entity action surfaces as one: a script step
+    with `continue_on_error` moves on past it, and the frontend shows its message.
+    """
 
 
 class EufySdkApiClientCommunicationError(EufySdkApiClientError):
