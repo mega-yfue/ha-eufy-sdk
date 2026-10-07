@@ -5,15 +5,17 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING, Any
 
-from homeassistant.core import callback
+from homeassistant.core import CALLBACK_TYPE, callback
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import Entity
-from homeassistant.helpers.event import async_call_later
+from homeassistant.helpers.event import async_call_later, async_track_point_in_time
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.util import dt as dt_util
 
 from .const import ATTRIBUTION, DOMAIN, EVENT_TYPE, SOLIX_READING_EVENT
 from .coordinator import EufySdkDataUpdateCoordinator
+from .schedule_logic import MODE_SCHEDULE, next_schedule_boundary
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Iterator
@@ -363,3 +365,57 @@ class EufySdkPropertyEntity(EufySdkDeviceEntity):
             self._post_write_unsub = None
         self._assumed_value = None
         await super().async_will_remove_from_hass()
+
+
+class ScheduleBoundaryMixin:
+    """
+    Re-write an entity's state at each slot boundary of its station's timetable.
+
+    While the station is on Schedule the enforced mode depends on the clock, and a
+    slot can turn over with no push and no poll for up to a full poll interval, so
+    the entity wakes at the next slot start or end and writes again there. For a
+    device entity bound to an arming-capable station.
+    """
+
+    _boundary_unsub: CALLBACK_TYPE | None = None
+
+    async def async_added_to_hass(self) -> None:
+        """Start following the timetable's slot boundaries."""
+        await super().async_added_to_hass()
+        self._arm_boundary()
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Stop the pending boundary timer."""
+        self._cancel_boundary()
+        await super().async_will_remove_from_hass()
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Re-arm the boundary timer against the fresh state, then write."""
+        self._arm_boundary()
+        super()._handle_coordinator_update()
+
+    def _cancel_boundary(self) -> None:
+        if self._boundary_unsub is not None:
+            self._boundary_unsub()
+            self._boundary_unsub = None
+
+    @callback
+    def _arm_boundary(self) -> None:
+        """Wake at the next slot start or end while the station is on Schedule."""
+        self._cancel_boundary()
+        state = self.device.get("state", {})
+        if state.get("armingMode") not in (MODE_SCHEDULE, str(MODE_SCHEDULE)):
+            return
+        at = next_schedule_boundary(state.get("jsonSchedule"), dt_util.now())
+        if at is not None:
+            self._boundary_unsub = async_track_point_in_time(
+                self.hass, self._on_boundary, at
+            )
+
+    @callback
+    def _on_boundary(self, _now: Any) -> None:
+        """Write the state the new slot brings, then wait for the next boundary."""
+        self._boundary_unsub = None
+        self.async_write_ha_state()
+        self._arm_boundary()

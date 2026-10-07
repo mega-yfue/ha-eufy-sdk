@@ -4,6 +4,7 @@ import unittest
 from datetime import datetime
 from unittest.mock import Mock, patch
 
+from custom_components.eufy_sdk import entity as entity_module
 from custom_components.eufy_sdk import sensor
 
 STATION = "T8030P0000000001"
@@ -29,9 +30,9 @@ class CurrentModeBoundaryTests(unittest.TestCase):
         entity = self._sensor({"armingMode": 2, "jsonSchedule": _SCHEDULE})
         unsub = Mock()
         with (
-            patch.object(sensor.dt_util, "now", return_value=_NOW),
+            patch.object(entity_module.dt_util, "now", return_value=_NOW),
             patch.object(
-                sensor, "async_track_point_in_time", return_value=unsub
+                entity_module, "async_track_point_in_time", return_value=unsub
             ) as track,
         ):
             entity._arm_boundary()
@@ -46,9 +47,9 @@ class CurrentModeBoundaryTests(unittest.TestCase):
         entity = self._sensor({"armingMode": 2, "jsonSchedule": _SCHEDULE})
         first, second = Mock(), Mock()
         with (
-            patch.object(sensor.dt_util, "now", return_value=_NOW),
+            patch.object(entity_module.dt_util, "now", return_value=_NOW),
             patch.object(
-                sensor, "async_track_point_in_time", side_effect=[first, second]
+                entity_module, "async_track_point_in_time", side_effect=[first, second]
             ),
         ):
             entity._arm_boundary()
@@ -59,7 +60,7 @@ class CurrentModeBoundaryTests(unittest.TestCase):
     def test_off_schedule_no_timer_is_set(self):
         for state in ({"armingMode": 0}, {"armingMode": 47}, {}):
             entity = self._sensor({**state, "jsonSchedule": _SCHEDULE})
-            with patch.object(sensor, "async_track_point_in_time") as track:
+            with patch.object(entity_module, "async_track_point_in_time") as track:
                 entity._arm_boundary()
             track.assert_not_called()
 

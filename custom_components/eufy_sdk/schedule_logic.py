@@ -169,3 +169,19 @@ def next_schedule_boundary(schedule: Any, at: datetime) -> datetime | None:
             if moment > at:
                 return moment
     return None
+
+
+def current_mode_attributes(state: dict[str, Any], now: datetime) -> dict[str, Any]:
+    """
+    Return the set mode's label, the enforced mode id and which source answered.
+
+    `source` is `schedule` when the timetable resolved the mode and `set` when the
+    station is on a fixed mode, so "on Schedule, currently Home" reads apart from
+    "set to Home".
+    """
+    mode, source = current_mode_for(state, now)
+    return {
+        "arming_mode": mode_label(state.get("armingMode")),
+        "mode_id": mode,
+        "source": source,
+    }
