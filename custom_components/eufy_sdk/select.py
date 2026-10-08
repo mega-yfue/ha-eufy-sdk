@@ -268,7 +268,12 @@ class EufySdkPresetSelect(EufySdkDeviceEntity, SelectEntity, RestoreEntity):
         self._publish()
         # Best-effort: the camera may be asleep, and a battery camera must not be
         # woken just to refresh a list. Whatever we already have stands until then.
-        await self._reread()
+        # In the background: the P2P read can take up to 45 s on a sleeping camera,
+        # and awaiting it here holds up the whole integration's setup.
+        task = entry.async_create_background_task(
+            self.hass, self._reread(), f"{self._sn} preset slots"
+        )
+        self.async_on_remove(task.cancel)
 
     @callback
     def _handle_coordinator_update(self) -> None:
@@ -278,7 +283,9 @@ class EufySdkPresetSelect(EufySdkDeviceEntity, SelectEntity, RestoreEntity):
         # a camera that something else is already streaming, no more often than
         # SLOT_REREAD_SECS. A camera that never streams simply keeps its last list.
         if self.device.get("streaming") and self._read_is_due():
-            self.hass.async_create_task(self._reread())
+            self.coordinator.config_entry.async_create_background_task(
+                self.hass, self._reread(), f"{self._sn} preset slots"
+            )
         super()._handle_coordinator_update()
 
     def _read_is_due(self) -> bool:
