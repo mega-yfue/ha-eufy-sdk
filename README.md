@@ -114,3 +114,45 @@ suffixes above.
 Contributions are welcome — please branch from **`dev`** and open your PR against **`dev`** (not
 `main`). See [CONTRIBUTING.md](./CONTRIBUTING.md) for the branch model, CI checks, and how releases
 are cut.
+
+### Decoded property readings
+
+With a bridge implementing [decoded readings](https://github.com/mega-yfue/ha-eufy-sdk-bridge/pull/85),
+the client uses the SDK's namespaced getter values for mapped properties. For example,
+recording quality can arrive as a structured raw configuration while the SDK getter
+returns the active tier; the select then shows the tier's label instead of `unknown`.
+Entity property identities and the `device.set` write route stay the same. This
+addresses one source of unknown settings, not every device or connectivity issue.
+
+Durations declared as decoded kind `seconds` are interpreted as numbers, even
+when the stored type is a string. Writable durations appear as Number controls;
+read-only durations appear as numeric Sensors. Missing or invalid decoded
+durations remain unknown.
+
+The client fetches `device.properties` metadata once per device and reuses it for
+setup and later polls. It refetches after a connection change or `ready` event, or
+when a device's model, capabilities, or decoded accessor keys change. Metadata
+requests are serialized and concurrent callers share cached results. Failed metadata
+requests and stale-session responses still fail that coordinator refresh. If a model
+change adds or removes entities, reload the integration to rebuild those entities.
+
+During decoded snapshot refreshes, each metadata capability must identify its
+accessor and provide a read list; each read must identify both its getter accessor
+and flat property name. Malformed or missing decoded metadata discards only that
+device's cached metadata and preserves its unchanged raw snapshot; other devices
+continue using their decoded readings. A warning is logged once per affected
+device until its metadata is repaired or the device is removed. The next ordinary
+refresh requests that device's metadata again, without resetting the connection
+or scheduling a special retry. Empty read lists and valid unmatched reads are
+allowed: metadata and values arrive separately, and getter names can differ from
+flat property names. The client does not guess a missing alias or clear unrelated
+raw properties. Metadata matching an absent snapshot reading produces unknown.
+
+With valid metadata, decoded readings are authoritative: missing, null, invalid,
+or ambiguous mapped readings become unknown even when the raw property contains
+a scalar. Raw and decoded scalars need not have the same polarity, units, or
+validation. Valid decoded values such as `false` and `0` are preserved. Unrelated raw
+properties and write-only settings retain their existing behavior. Older bridges
+without `decodedState` continue through the legacy raw-state path. This does not
+add a decoded event stream, increase the configured polling frequency, or guarantee
+that a snapshot is a fresh physical device confirmation.

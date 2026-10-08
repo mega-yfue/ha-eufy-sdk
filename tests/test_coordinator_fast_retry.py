@@ -8,6 +8,7 @@ from homeassistant.helpers.update_coordinator import UpdateFailed
 
 from custom_components.eufy_sdk import coordinator as coord_mod
 from custom_components.eufy_sdk.api import (
+    EufySdkApiClient,
     EufySdkApiClientCommunicationError,
     EufySdkApiClientError,
 )
@@ -64,6 +65,24 @@ class FastRetryTests(unittest.IsolatedAsyncioTestCase):
         client.reset_connection.assert_not_awaited()
         self.call_later.assert_called_once()
         self.assertEqual(self.call_later.call_args.args[1], c._FAST_RETRY_S)
+
+    async def test_ready_during_real_snapshot_keeps_socket_but_retries_stale_poll(self):
+        client = EufySdkApiClient("example.invalid", 3000, Mock())
+        client._ws = Mock(closed=False)
+        client.auth_status = AsyncMock(return_value={"state": "ok"})
+        client.reset_connection = AsyncMock()
+
+        async def rpc(cmd: str, **_kwargs: object) -> dict:
+            self.assertEqual(cmd, "devices.list")
+            client._dispatch_event({"event": "ready"})
+            return {"devices": []}
+
+        client.rpc = AsyncMock(side_effect=rpc)
+        c = _coordinator(client)
+        with pytest.raises(UpdateFailed, match="previous bridge session"):
+            await c._async_update_data()
+        client.reset_connection.assert_not_awaited()
+        self.call_later.assert_called_once()
 
     async def test_a_bridge_still_booting_retries_soon_without_a_reset(self):
         client = _client()
