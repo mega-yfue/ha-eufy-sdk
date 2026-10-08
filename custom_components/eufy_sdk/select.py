@@ -270,9 +270,10 @@ class EufySdkPresetSelect(EufySdkDeviceEntity, SelectEntity, RestoreEntity):
         # woken just to refresh a list. Whatever we already have stands until then.
         # In the background: the P2P read can take up to 45 s on a sleeping camera,
         # and awaiting it here holds up the whole integration's setup.
-        entry.async_create_background_task(
+        task = entry.async_create_background_task(
             self.hass, self._reread(), f"{self._sn} preset slots"
         )
+        self.async_on_remove(task.cancel)
 
     @callback
     def _handle_coordinator_update(self) -> None:
