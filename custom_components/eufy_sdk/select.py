@@ -283,7 +283,9 @@ class EufySdkPresetSelect(EufySdkDeviceEntity, SelectEntity, RestoreEntity):
         # a camera that something else is already streaming, no more often than
         # SLOT_REREAD_SECS. A camera that never streams simply keeps its last list.
         if self.device.get("streaming") and self._read_is_due():
-            self.hass.async_create_task(self._reread())
+            self.coordinator.config_entry.async_create_background_task(
+                self.hass, self._reread(), f"{self._sn} preset slots"
+            )
         super()._handle_coordinator_update()
 
     def _read_is_due(self) -> bool:
