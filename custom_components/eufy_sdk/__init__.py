@@ -36,6 +36,7 @@ from .const import (
 )
 from .coordinator import EufySdkDataUpdateCoordinator
 from .data import EufySdkData
+from .property_sync import apply_property_changed_event
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -104,6 +105,28 @@ def _alarm_lifecycle(
     return on_alarm
 
 
+def _apply_property_changed(
+    hass: HomeAssistant,
+    entry: EufySdkConfigEntry,
+    coordinator: EufySdkDataUpdateCoordinator,
+    evt: dict,
+) -> None:
+    """Apply a realtime property report, refreshing when it carries no value."""
+    result = apply_property_changed_event(coordinator, evt)
+    if result != "refresh":
+        return
+
+    serial = evt.get("deviceSn") or evt.get("sn")
+    if not serial or serial not in coordinator.data:
+        return
+
+    entry.async_create_background_task(
+        hass,
+        coordinator.async_request_refresh(),
+        f"{evt.get('property', 'property')} refresh",
+    )
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: EufySdkConfigEntry) -> bool:
     """Set up eufy_sdk from a config entry."""
     poll_min = entry.options.get(CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL_MIN)
@@ -138,8 +161,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: EufySdkConfigEntry) -> b
         _end_cancelled_delay(serial)
 
     def _on_event(evt: dict) -> None:
-        hass.bus.async_fire(EVENT_TYPE, evt)
         event = evt.get("event")
+
+        if event == "propertyChanged":
+            _apply_property_changed(hass, entry, coordinator, evt)
+
+        # Fire after applying direct state so entity listeners reacting to the bus
+        # already see the new coordinator value.
+        hass.bus.async_fire(EVENT_TYPE, evt)
+
         if event == "contactState":
             sn = evt.get("deviceSn") or evt.get("sn")
             if sn and sn in coordinator.data and "open" in evt:

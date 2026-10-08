@@ -174,9 +174,9 @@ class EufyBitmaskSwitch(EufySdkPropertyEntity, SwitchEntity):
         return None if v is None else bool(int(v) & self._bit)
 
     async def async_turn_on(self, **_: Any) -> None:
-        """Set this bit (keeping the enable base and the other bits)."""
-        await self.write(self._mask() | self._bit | self._base)
+        """Set this bit while preserving every other reported bit."""
+        await self.write(self._mask() | self._bit)
 
     async def async_turn_off(self, **_: Any) -> None:
-        """Clear this bit (keeping the enable base and the other bits)."""
-        await self.write((self._mask() & ~self._bit) | self._base)
+        """Clear this bit while preserving every other reported bit."""
+        await self.write(self._mask() & ~self._bit)

@@ -314,7 +314,60 @@ class EufySdkPropertyEntity(EufySdkDeviceEntity):
         if not self._named_by_translation:
             self._attr_name = label_for(self._prop)
         self._post_write_unsub: Callable[[], None] | None = None
+        self._post_write_owner: int | None = None
         self._assumed_value: Any = None
+        self._optimistic_owner: int | None = None
+        self._write_generation = 0
+        self._report_generation = 0
+        self._removed = False
+
+    async def async_added_to_hass(self) -> None:
+        """Subscribe to authoritative realtime updates for this property."""
+        self._removed = False
+        await super().async_added_to_hass()
+        self.async_on_remove(
+            self.hass.bus.async_listen(
+                EVENT_TYPE,
+                self._handle_property_changed,
+                event_filter=self._property_event_filter,
+            )
+        )
+
+    @callback
+    def _property_event_filter(self, event: Event) -> bool:
+        """Accept only valued realtime reports for this property entity."""
+        data = event.data
+        return (
+            data.get("event") == "propertyChanged"
+            and (data.get("deviceSn") or data.get("sn")) == self._sn
+            and data.get("property") == self._prop
+            and "value" in data
+        )
+
+    @callback
+    def _handle_property_changed(self, event: Event) -> None:
+        """Release an optimistic write as soon as real device state arrives."""
+        data = event.data
+        if data.get("event") != "propertyChanged":
+            return
+        if (data.get("deviceSn") or data.get("sn")) != self._sn:
+            return
+        if data.get("property") != self._prop:
+            return
+        if "value" not in data:
+            return
+
+        # This report is authoritative for the state the device observed. If it
+        # arrived while a write RPC was pending, its ordering relative to that
+        # write is unknown, so that write must not later restore an optimistic value.
+        self._report_generation += 1
+        if self._post_write_unsub is not None:
+            self._post_write_unsub()
+            self._post_write_unsub = None
+        self._post_write_owner = None
+        self._optimistic_owner = None
+        self._assumed_value = None
+        self.async_write_ha_state()
 
     @property
     def prop_value(self) -> Any:
@@ -329,19 +382,38 @@ class EufySdkPropertyEntity(EufySdkDeviceEntity):
         return bool(self._spec.get("writeOnly"))
 
     async def write(self, value: Any) -> None:
-        """Write, hold the value optimistically, and reconcile via a delayed pull."""
+        """Write while keeping optimistic state owned by the latest operation."""
+        self._write_generation += 1
+        owner = self._write_generation
+        report_generation = self._report_generation
+
         await self.client.set_property(self._sn, self._prop, value)
-        # Keep the intended value shown until the delayed pull reconciles it.
-        self._assumed_value = value
-        self.async_write_ha_state()
-        # A write-only setting never comes back in a pull, so reconciling would only
-        # drop the value just written back to unknown: the written value is the state.
+
+        if self._removed:
+            return
+
+        latest_write = owner == self._write_generation
+        report_arrived = report_generation != self._report_generation
+
+        if latest_write and not report_arrived:
+            self._assumed_value = value
+            self._optimistic_owner = owner
+            self.async_write_ha_state()
+
         if self.write_only:
             return
-        # Schedule one delayed re-pull (replacing any pending) so a slow change
-        # is reflected without waiting for the next scheduled poll.
+
+        self._schedule_post_write_refresh(owner)
+
+    def _schedule_post_write_refresh(self, owner: int) -> None:
+        """Schedule reconciliation without replacing a newer write's refresh."""
+        if self._removed:
+            return
+        if self._post_write_owner is not None and self._post_write_owner > owner:
+            return
         if self._post_write_unsub is not None:
             self._post_write_unsub()
+        self._post_write_owner = owner
         self._post_write_unsub = async_call_later(
             self.hass, POST_WRITE_REFRESH_SECS, self._post_write_refresh
         )
@@ -349,20 +421,30 @@ class EufySdkPropertyEntity(EufySdkDeviceEntity):
     @callback
     def _post_write_refresh(self, _now: Any) -> None:
         """Fire the delayed post-write reconcile."""
+        owner = self._post_write_owner
         self._post_write_unsub = None
-        self.hass.async_create_task(self._reconcile())
+        self._post_write_owner = None
+        if owner is not None:
+            self.hass.async_create_task(self._reconcile(owner))
 
-    async def _reconcile(self) -> None:
-        """Pull fresh cloud state, drop the optimistic hold, re-render to truth."""
+    async def _reconcile(self, owner: int) -> None:
+        """Pull fresh state and release only the optimistic value this pull owns."""
         await self.coordinator.async_request_refresh()
-        self._assumed_value = None
-        self.async_write_ha_state()
+        if self._optimistic_owner == owner:
+            self._optimistic_owner = None
+            self._assumed_value = None
+            self.async_write_ha_state()
 
     async def async_will_remove_from_hass(self) -> None:
-        """Cancel a pending delayed refresh when the entity goes away."""
+        """Invalidate pending writes and reconciliation when the entity goes away."""
+        self._removed = True
+        self._write_generation += 1
+        self._report_generation += 1
         if self._post_write_unsub is not None:
             self._post_write_unsub()
             self._post_write_unsub = None
+        self._post_write_owner = None
+        self._optimistic_owner = None
         self._assumed_value = None
         await super().async_will_remove_from_hass()
 
