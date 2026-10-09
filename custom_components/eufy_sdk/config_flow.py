@@ -52,7 +52,6 @@ class EufySdkFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         self._host: str = ""
         self._port: int = DEFAULT_PORT
         self._go2rtc_rtsp_port: int = DEFAULT_GO2RTC_RTSP_PORT
-        self._entry_to_update: config_entries.ConfigEntry | None = None
 
     def _set_bridge_fields(self, data: dict[str, Any]) -> None:
         """Store bridge form/discovery fields on the in-progress flow."""
@@ -214,10 +213,19 @@ class EufySdkFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             "host": f"{self._host}:{self._port}",
         }
 
-        self._entry_to_update = self._find_existing_entry(discovery_info.uuid)
-        if self._entry_to_update is None:
-            await self.async_set_unique_id(discovery_info.uuid)
-            self._abort_if_unique_id_configured(updates=self._entry_data())
+        # The add-on re-announces itself on every start. When this bridge already has
+        # an entry, refresh its addresses (reloading only if they changed) and drop the
+        # discovery, so it isn't offered again.
+        existing = self._find_existing_entry(discovery_info.uuid)
+        if existing is not None:
+            return self.async_update_reload_and_abort(
+                existing,
+                data_updates=self._entry_data(),
+                reason="already_configured",
+                reload_even_if_entry_is_unchanged=False,
+            )
+        await self.async_set_unique_id(discovery_info.uuid)
+        self._abort_if_unique_id_configured(updates=self._entry_data())
 
         try:
             self._client = EufySdkApiClient(
@@ -277,10 +285,6 @@ class EufySdkFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         if self.source == config_entries.SOURCE_REAUTH:
             return self.async_update_reload_and_abort(
                 self._get_reauth_entry(), data_updates={}
-            )
-        if self._entry_to_update is not None:
-            return self.async_update_reload_and_abort(
-                self._entry_to_update, data_updates=self._entry_data()
             )
         return self.async_create_entry(
             title=f"eufy bridge ({self._host})",
