@@ -243,7 +243,8 @@ class EufySdkPresetSelect(EufySdkDeviceEntity, SelectEntity, RestoreEntity):
         """Start from the fallback slots; the real ones arrive on the first read."""
         super().__init__(coordinator, sn)
         self._attr_unique_id = f"{sn}_preset_slot"
-        self._last_read = 0.0
+        # Monotonic time of the last slot read; None until the first one.
+        self._last_read: float | None = None
         self._apply(presets.slots_for(coordinator.config_entry, sn))
 
     @property
@@ -290,6 +291,8 @@ class EufySdkPresetSelect(EufySdkDeviceEntity, SelectEntity, RestoreEntity):
 
     def _read_is_due(self) -> bool:
         """Return whether enough time has passed to ask the camera again."""
+        if self._last_read is None:
+            return True
         return time.monotonic() - self._last_read >= SLOT_REREAD_SECS
 
     async def _reread(self) -> None:
