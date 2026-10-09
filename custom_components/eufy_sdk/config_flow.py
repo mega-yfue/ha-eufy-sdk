@@ -358,7 +358,9 @@ class EufySdkFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 await self._client.retrigger_auth()
                 return await self._continue_auth()
             auth = await self._client.submit_captcha(str(user_input["answer"]))
-            if auth.get("state") == "ok":
+            # A correct answer can lead on to an email 2FA code instead of straight to
+            # "ok"; only another captcha means the answer was wrong.
+            if auth.get("state") in ("ok", "require_2fa"):
                 return await self._continue_auth()
             errors["base"] = "invalid_captcha"
 
