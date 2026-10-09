@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from homeassistant.components.event import EventDeviceClass, EventEntity
+from homeassistant.components.event import (
+    DoorbellEventType,
+    EventDeviceClass,
+    EventEntity,
+)
 from homeassistant.core import callback
 
 from .const import EVENT_TYPE
@@ -13,7 +17,6 @@ from .pushmap import (
     DETECTION_CAPABILITIES,
     DETECTION_EVENTS,
     DOORBELL_EVENT,
-    DOORBELL_EVENT_TYPE,
 )
 
 if TYPE_CHECKING:
@@ -77,11 +80,13 @@ class EufySdkDoorbellEvent(_EufySdkBusEvent):
         """Bind to a doorbell device."""
         super().__init__(coordinator, sn)
         self._attr_unique_id = f"{sn}_doorbell_event"
-        self._attr_event_types = [DOORBELL_EVENT_TYPE]
+        # Home Assistant requires a doorbell event entity to support `ring` (enforced
+        # from 2027.4). It replaces the earlier custom `pressed` type.
+        self._attr_event_types = [DoorbellEventType.RING]
 
     def _match(self, bus_event: str | None) -> str | None:
-        """Fire on a doorbell press."""
-        return DOORBELL_EVENT_TYPE if bus_event == DOORBELL_EVENT else None
+        """Fire `ring` on a doorbell press."""
+        return DoorbellEventType.RING if bus_event == DOORBELL_EVENT else None
 
 
 class EufySdkDetectionEvent(_EufySdkBusEvent):

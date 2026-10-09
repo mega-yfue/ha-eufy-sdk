@@ -61,10 +61,10 @@ MOTION_EVENTS: frozenset[str] = frozenset(
     }
 )
 
-# A doorbell press is its own event entity (device_class DOORBELL), and also the
-# auto-off "Ringing" binary_sensor above for state-based automations.
+# A doorbell press is its own event entity (device_class DOORBELL, firing Home
+# Assistant's standard `ring` event type), and also the auto-off "Ringing"
+# binary_sensor above for state-based automations.
 DOORBELL_EVENT = "doorbellPress"
-DOORBELL_EVENT_TYPE = "pressed"
 
 # A delivered package is a STATE, not a detection: the "Package" binary_sensor latches
 # on at delivery (and stays on if eufy reports it stranded) and clears only when the
