@@ -22,6 +22,7 @@ from .entity import device_offline
 from .snapshot_policy import snapshot_url
 
 if TYPE_CHECKING:
+    from homeassistant.components.stream import Stream
     from homeassistant.core import HomeAssistant
     from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -88,9 +89,40 @@ class EufySdkCamera(CoordinatorEntity["EufySdkDataUpdateCoordinator"], Camera):
             and not device_offline(self.coordinator.data.get(self._sn))
         )
 
+    @property
+    def _on_battery(self) -> bool:
+        """Whether the bridge reports this camera as battery-powered."""
+        dev = self.coordinator.data.get(self._sn) or {}
+        return "battery" in (dev.get("capabilities") or [])
+
     async def stream_source(self) -> str:
-        """Return the go2rtc RTSP URL — HA's stream component + go2rtc do the work."""
+        """
+        Return where the live video comes from.
+
+        A mains camera goes through the bridge's go2rtc RTSP restream. A battery camera
+        is pulled straight from the bridge's /stream by Home Assistant's own go2rtc
+        (ffmpeg, video copied as-is), so nothing but a live viewer opens it.
+        """
+        if self._on_battery:
+            return (
+                f"ffmpeg:http://{self._host}:{self._port}/stream/{self._sn}"
+                "#video=copy#async"
+            )
         return f"rtsp://{self._host}:{self._rtsp_port}/{self._sn}"
+
+    async def async_create_stream(self) -> Stream | None:
+        """
+        Skip Home Assistant's stream worker for a battery camera.
+
+        That worker retries a failed or closed source forever, and every retry makes
+        the bridge wake the camera over P2P. A battery camera was drained flat that way
+        after one live view (ha-eufy-sdk#83). Live view then runs through Home
+        Assistant's go2rtc (WebRTC) only, so there is no HLS fallback and no
+        camera.record for battery cameras.
+        """
+        if self._on_battery:
+            return None
+        return await super().async_create_stream()
 
     async def async_camera_image(
         self,
