@@ -29,7 +29,13 @@ class EufySdkData:
     # select entity owns it and the go-to / save buttons read it, so the two platforms
     # agree on a slot without finding each other through the entity registry.
     selected_preset: dict[str, int] = field(default_factory=dict)
+    # Local snapshot policy per camera; absent means the bridge's configured behavior.
+    snapshot_policy: dict[str, str] = field(default_factory=dict)
     # Slots as each camera last reported them ({sn: [PresetSlot, …]}), read over P2P so
     # only present once the camera has been awake to answer. Empty means "not asked
     # yet", never "no presets" — see presets.py.
     preset_slots: dict[str, list[Any]] = field(default_factory=dict)
+    # Each station's alarm lifecycle from the `alarm` push ({sn: {alarmTriggered,
+    # alarmPending, alarmType, alarmUser}}). Kept here, outside the polled device
+    # state, so a coordinator refresh can't clear an alarm that is still sounding.
+    station_alarms: dict[str, dict[str, Any]] = field(default_factory=dict)

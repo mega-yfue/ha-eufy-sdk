@@ -1,3 +1,7 @@
 -r requirements_lint.txt
 colorlog==6.10.1
 homeassistant==2026.7.0
+# Mirror HA's camera/stream requirements; update these when the HA pin changes.
+PyTurboJPEG==1.8.3
+av==17.0.1
+numpy==2.3.2

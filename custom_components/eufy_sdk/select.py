@@ -22,6 +22,11 @@ from .entity import (
     remove_stale_solix_entities,
     solix_devices_with,
 )
+from .snapshot_policy import (
+    SNAPSHOT_POLICY_DEFAULT,
+    SNAPSHOT_POLICY_OPTIONS,
+    normalize_snapshot_policy,
+)
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -80,6 +85,11 @@ async def async_setup_entry(
         for sn, dev in coordinator.data.items()
         if has_capability(dev, "ptz")
     )
+    entities.extend(
+        EufySdkSnapshotPolicySelect(coordinator, sn)
+        for sn, dev in coordinator.data.items()
+        if dev.get("stream")
+    )
     async_add_entities(entities)
 
 
@@ -115,6 +125,42 @@ class EufySdkSelect(EufySdkPropertyEntity, SelectEntity):
         # Send an int when the raw code is numeric, else the raw string.
         value: int | str = int(raw) if raw.lstrip("-").isdigit() else raw
         await self.write(value)
+
+
+class EufySdkSnapshotPolicySelect(EufySdkDeviceEntity, SelectEntity, RestoreEntity):
+    """Choose this camera's local snapshot acquisition policy."""
+
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_icon = "mdi:camera-retake"
+    _attr_options: ClassVar[list[str]] = list(SNAPSHOT_POLICY_OPTIONS)
+    _attr_translation_key = "snapshot_policy"
+
+    def __init__(self, coordinator: EufySdkDataUpdateCoordinator, sn: str) -> None:
+        """Bind a local policy to one camera's stable device identity."""
+        super().__init__(coordinator, sn)
+        self._attr_unique_id = f"{sn}_snapshot_policy"
+        self._attr_current_option = SNAPSHOT_POLICY_DEFAULT
+
+    async def async_added_to_hass(self) -> None:
+        """Restore the local choice without querying or writing the camera."""
+        await super().async_added_to_hass()
+        last = await self.async_get_last_state()
+        self._attr_current_option = normalize_snapshot_policy(
+            last.state if last else None
+        )
+        self._publish()
+
+    async def async_select_option(self, option: str) -> None:
+        """Store the local choice and never send it through the device API."""
+        self._attr_current_option = normalize_snapshot_policy(option)
+        self._publish()
+        self.async_write_ha_state()
+
+    def _publish(self) -> None:
+        """Make the local choice available to this entry's camera entities."""
+        self.coordinator.config_entry.runtime_data.snapshot_policy[self._sn] = (
+            self._attr_current_option
+        )
 
 
 class EufySolixScreenOffSelect(EufySolixEntity, SelectEntity):
@@ -197,7 +243,8 @@ class EufySdkPresetSelect(EufySdkDeviceEntity, SelectEntity, RestoreEntity):
         """Start from the fallback slots; the real ones arrive on the first read."""
         super().__init__(coordinator, sn)
         self._attr_unique_id = f"{sn}_preset_slot"
-        self._last_read = 0.0
+        # Monotonic time of the last slot read; None until the first one.
+        self._last_read: float | None = None
         self._apply(presets.slots_for(coordinator.config_entry, sn))
 
     @property
@@ -222,7 +269,12 @@ class EufySdkPresetSelect(EufySdkDeviceEntity, SelectEntity, RestoreEntity):
         self._publish()
         # Best-effort: the camera may be asleep, and a battery camera must not be
         # woken just to refresh a list. Whatever we already have stands until then.
-        await self._reread()
+        # In the background: the P2P read can take up to 45 s on a sleeping camera,
+        # and awaiting it here holds up the whole integration's setup.
+        task = entry.async_create_background_task(
+            self.hass, self._reread(), f"{self._sn} preset slots"
+        )
+        self.async_on_remove(task.cancel)
 
     @callback
     def _handle_coordinator_update(self) -> None:
@@ -232,11 +284,15 @@ class EufySdkPresetSelect(EufySdkDeviceEntity, SelectEntity, RestoreEntity):
         # a camera that something else is already streaming, no more often than
         # SLOT_REREAD_SECS. A camera that never streams simply keeps its last list.
         if self.device.get("streaming") and self._read_is_due():
-            self.hass.async_create_task(self._reread())
+            self.coordinator.config_entry.async_create_background_task(
+                self.hass, self._reread(), f"{self._sn} preset slots"
+            )
         super()._handle_coordinator_update()
 
     def _read_is_due(self) -> bool:
         """Return whether enough time has passed to ask the camera again."""
+        if self._last_read is None:
+            return True
         return time.monotonic() - self._last_read >= SLOT_REREAD_SECS
 
     async def _reread(self) -> None:

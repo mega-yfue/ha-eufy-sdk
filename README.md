@@ -42,6 +42,8 @@ Entities are built from what each device reports, so you only get what your hard
 
 - **Cameras & doorbells** — live WebRTC/HLS video (via go2rtc), snapshots, and a "Last event" image.
 - **Events** — motion / person / pet / package / doorbell-ring, as HA events + triggers.
+- **Doorbell sensors** — a *Ringing* binary sensor (on at a press, clears after 30 s) and a
+  *Package* binary sensor (on at delivery, stays on if stranded, off when taken; survives restarts).
 - **Lights** — eufy smart lights (on/off, brightness, and RGB colour where supported).
 - **Sensors** — battery %, signal, and per-device state.
 - **Switches, selects & numbers** — e.g. privacy/enabled, night vision, video/recording quality.
@@ -52,6 +54,21 @@ Entities are built from what each device reports, so you only get what your hard
 **Anker Solix** (power stations / smart meter) is a **separate account** and is **not** in the public
 bridge — it ships only in the bridge's `dev`/beta image. With that build, Solix devices appear as
 sensors. The eufyMake 3D printer isn't supported yet.
+
+## Snapshot policy
+
+The Camera entities expose a per-camera **Snapshot policy** select that controls how
+still images are requested from the bridge:
+
+- **Default**: use the bridge's configured snapshot behaviour.
+- **Auto**: use the bridge's automatic battery-capability policy.
+- **Stored**: use retained or persisted imagery without starting live acquisition.
+- **Live**: try live acquisition first, with retained or persisted imagery available
+  as fallback.
+
+Default works with the bare snapshot endpoint. Auto, Stored, and Live require a bridge version
+containing [request-mode support](https://github.com/mega-yfue/ha-eufy-sdk-bridge/pull/79). Older
+bridge versions ignore the `mode` query and therefore use Default behaviour.
 
 ## Migrating from `fuatakgun/eufy_security`
 
@@ -72,6 +89,12 @@ On a 31-device setup that came to 263 substitutions across 10 files — automati
 templates, packages and dashboards. Worth knowing: YAML-mode dashboards under `config/lovelace/`
 are not in `.storage`, so a sweep that only reads the entity registry will miss them.
 
+**Set mode vs current mode.** `select.X_arming_mode` is the mode the station is *set* to, so
+on Schedule it reads `schedule`. The mode it is enforcing right now is `sensor.X_current_mode`,
+resolved from the station's timetable in Home Assistant's configured time zone. That has to match
+the station's local time: with HA left on UTC, every slot resolves shifted by the offset. On Geo it
+reads unknown, because the hub doesn't report which mode presence chose.
+
 **The two integrations keep separate device registries.** The same physical camera gets its own
 device entry under each integration, so a migration script that maps old entities to new ones by
 `device_id` finds nothing at all. Match devices by **name** instead, then translate the entity
@@ -91,3 +114,45 @@ suffixes above.
 Contributions are welcome — please branch from **`dev`** and open your PR against **`dev`** (not
 `main`). See [CONTRIBUTING.md](./CONTRIBUTING.md) for the branch model, CI checks, and how releases
 are cut.
+
+### Decoded property readings
+
+With a bridge implementing [decoded readings](https://github.com/mega-yfue/ha-eufy-sdk-bridge/pull/85),
+the client uses the SDK's namespaced getter values for mapped properties. For example,
+recording quality can arrive as a structured raw configuration while the SDK getter
+returns the active tier; the select then shows the tier's label instead of `unknown`.
+Entity property identities and the `device.set` write route stay the same. This
+addresses one source of unknown settings, not every device or connectivity issue.
+
+Durations declared as decoded kind `seconds` are interpreted as numbers, even
+when the stored type is a string. Writable durations appear as Number controls;
+read-only durations appear as numeric Sensors. Missing or invalid decoded
+durations remain unknown.
+
+The client fetches `device.properties` metadata once per device and reuses it for
+setup and later polls. It refetches after a connection change or `ready` event, or
+when a device's model, capabilities, or decoded accessor keys change. Metadata
+requests are serialized and concurrent callers share cached results. Failed metadata
+requests and stale-session responses still fail that coordinator refresh. If a model
+change adds or removes entities, reload the integration to rebuild those entities.
+
+During decoded snapshot refreshes, each metadata capability must identify its
+accessor and provide a read list; each read must identify both its getter accessor
+and flat property name. Malformed or missing decoded metadata discards only that
+device's cached metadata and preserves its unchanged raw snapshot; other devices
+continue using their decoded readings. A warning is logged once per affected
+device until its metadata is repaired or the device is removed. The next ordinary
+refresh requests that device's metadata again, without resetting the connection
+or scheduling a special retry. Empty read lists and valid unmatched reads are
+allowed: metadata and values arrive separately, and getter names can differ from
+flat property names. The client does not guess a missing alias or clear unrelated
+raw properties. Metadata matching an absent snapshot reading produces unknown.
+
+With valid metadata, decoded readings are authoritative: missing, null, invalid,
+or ambiguous mapped readings become unknown even when the raw property contains
+a scalar. Raw and decoded scalars need not have the same polarity, units, or
+validation. Valid decoded values such as `false` and `0` are preserved. Unrelated raw
+properties and write-only settings retain their existing behavior. Older bridges
+without `decodedState` continue through the legacy raw-state path. This does not
+add a decoded event stream, increase the configured polling frequency, or guarantee
+that a snapshot is a fresh physical device confirmation.

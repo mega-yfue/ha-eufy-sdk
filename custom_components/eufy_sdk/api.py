@@ -9,20 +9,41 @@ unsolicited `{event}` messages go to `on_event`. See the bridge's `docs/ws-proto
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import logging
 from typing import TYPE_CHECKING, Any
 
 import aiohttp
+from homeassistant.exceptions import HomeAssistantError
+
+from .manifest_reads import (
+    normalize_properties,
+    normalize_snapshot,
+    snapshot_signature,
+    valid_read_metadata,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+_LOGGER = logging.getLogger(__name__)
 
-class EufySdkApiClientError(Exception):
-    """A general bridge error."""
+
+class EufySdkApiClientError(HomeAssistantError):
+    """
+    A general bridge error.
+
+    A `HomeAssistantError`, so a failed entity action surfaces as one: a script step
+    with `continue_on_error` moves on past it, and the frontend shows its message.
+    """
 
 
 class EufySdkApiClientCommunicationError(EufySdkApiClientError):
     """The bridge could not be reached / spoke unexpectedly."""
+
+
+class EufySdkApiClientReplyTimeoutError(EufySdkApiClientCommunicationError):
+    """A sent bridge request did not receive its reply before the deadline."""
 
 
 class EufySdkApiClientAuthenticationError(EufySdkApiClientError):
@@ -57,11 +78,30 @@ class EufySdkApiClient:
         self._closing = False
         self._next_id = 0
         self._pending: dict[int, asyncio.Future[dict[str, Any]]] = {}
+        self._property_cache: dict[str, tuple[tuple | None, dict[str, Any]]] = {}
+        self._property_lock = asyncio.Lock()
+        self._metadata_generation = 0
+        self._invalid_metadata_devices: set[str] = set()
 
     @property
     def connected(self) -> bool:
         """Whether the WebSocket is open."""
         return self._ws is not None and not self._ws.closed
+
+    async def reset_connection(self) -> None:
+        """
+        Drop a wedged socket so the receive loop reconnects it fresh.
+
+        A request that times out doesn't close the WebSocket: `connected` stays True
+        and the next attempt hangs on the same dead socket. Unlike `close()`, this
+        keeps the reconnect supervisor running, so it reopens the connection.
+        """
+        ws = self._ws
+        self._ws = None
+        self._invalidate_properties()
+        if ws is not None:
+            with contextlib.suppress(Exception):  # best-effort teardown
+                await ws.close()
 
     async def connect(self) -> None:
         """Open the WebSocket + receive loop (serialized against reconnect)."""
@@ -75,11 +115,13 @@ class EufySdkApiClient:
             except (aiohttp.ClientError, TimeoutError, OSError) as err:
                 msg = f"cannot reach the bridge at {self._url}: {err}"
                 raise EufySdkApiClientCommunicationError(msg) from err
+            self._invalidate_properties()
             self._recv_task = asyncio.ensure_future(self._receive_loop())
 
     async def close(self) -> None:
         """Close the WebSocket and stop reconnecting."""
         self._closing = True
+        self._invalidate_properties()
         if self._reconnect_task:
             self._reconnect_task.cancel()
             self._reconnect_task = None
@@ -110,8 +152,8 @@ class EufySdkApiClient:
                     fut = self._pending.pop(mid)
                     if not fut.done():
                         fut.set_result(data)
-                elif data.get("event") and self._on_event:
-                    self._on_event(data)
+                elif data.get("event"):
+                    self._dispatch_event(data)
         except (aiohttp.ClientError, asyncio.CancelledError):
             pass
         finally:
@@ -119,6 +161,7 @@ class EufySdkApiClient:
             # and (unless deliberately closing) reconnect so events resume promptly, not
             # only on the next poll.
             self._ws = None
+            self._invalidate_properties()
             for fut in self._pending.values():
                 if not fut.done():
                     fut.set_exception(
@@ -127,6 +170,13 @@ class EufySdkApiClient:
             self._pending.clear()
             if not self._closing:
                 self._schedule_reconnect()
+
+    def _dispatch_event(self, data: dict[str, Any]) -> None:
+        """Invalidate session metadata before forwarding a ready event."""
+        if data["event"] == "ready":
+            self._invalidate_properties()
+        if self._on_event:
+            self._on_event(data)
 
     def _schedule_reconnect(self) -> None:
         """Start the reconnect supervisor if it isn't already running."""
@@ -164,14 +214,18 @@ class EufySdkApiClient:
         mid = self._next_id
         fut: asyncio.Future[dict[str, Any]] = asyncio.get_event_loop().create_future()
         self._pending[mid] = fut
-        await self._ws.send_json({"id": mid, "cmd": cmd, **args})  # type: ignore[union-attr]
         try:
-            async with asyncio.timeout(timeout):
-                reply = await fut
-        except TimeoutError as err:
+            await self._ws.send_json({"id": mid, "cmd": cmd, **args})  # type: ignore[union-attr]
+            try:
+                async with asyncio.timeout(timeout):
+                    reply = await fut
+            except TimeoutError as err:
+                msg = f"{cmd}: timed out"
+                raise EufySdkApiClientReplyTimeoutError(msg) from err
+        finally:
             self._pending.pop(mid, None)
-            msg = f"{cmd}: timed out"
-            raise EufySdkApiClientCommunicationError(msg) from err
+            if not fut.done():
+                fut.cancel()
         if not reply.get("ok"):
             raise EufySdkApiClientError(reply.get("error", f"{cmd} failed"))
         return reply
@@ -196,7 +250,98 @@ class EufySdkApiClient:
     # ── devices ──
     async def list_devices(self) -> list[dict[str, Any]]:
         """Every device the bridge exposes (sn/name/model/codec/capabilities/state)."""
-        return (await self.rpc("devices.list"))["devices"]
+        generation = self._metadata_generation
+        devices = (await self.rpc("devices.list"))["devices"]
+        present = {device["sn"] for device in devices}
+        self._invalid_metadata_devices.intersection_update(present)
+        for sn in self._property_cache.keys() - present:
+            del self._property_cache[sn]
+        result = []
+        for device in devices:
+            if "decodedState" not in device:
+                self._invalid_metadata_devices.discard(device["sn"])
+                result.append(device)
+                continue
+            ws = self._ws
+            try:
+                reply = await self._property_reply(
+                    device["sn"], snapshot_signature(device)
+                )
+            except EufySdkApiClientReplyTimeoutError:
+                await self._probe_metadata_connection(ws, generation)
+                reply = None
+            except (
+                EufySdkApiClientAuthenticationError,
+                EufySdkApiClientCommunicationError,
+            ):
+                raise
+            except EufySdkApiClientError:
+                self._check_metadata_generation(generation, "device snapshot")
+                reply = None
+            if reply is None:
+                self._property_cache.pop(device["sn"], None)
+                if device["sn"] not in self._invalid_metadata_devices:
+                    _LOGGER.warning(
+                        "Device %s property metadata request failed; "
+                        "preserving its raw snapshot until metadata is repaired",
+                        device["sn"],
+                    )
+                    self._invalid_metadata_devices.add(device["sn"])
+                result.append(device)
+                continue
+            manifest = reply.get("decodedProperties")
+            if not valid_read_metadata(manifest):
+                self._property_cache.pop(device["sn"], None)
+                if device["sn"] not in self._invalid_metadata_devices:
+                    _LOGGER.warning(
+                        "Device %s has incompatible decoded property metadata; "
+                        "preserving its raw snapshot until metadata is repaired",
+                        device["sn"],
+                    )
+                    self._invalid_metadata_devices.add(device["sn"])
+                result.append(device)
+                continue
+            self._invalid_metadata_devices.discard(device["sn"])
+            result.append(normalize_snapshot(device, reply))
+        self._check_metadata_generation(generation, "device snapshot")
+        return result
+
+    def _check_metadata_connection(
+        self, ws: aiohttp.ClientWebSocketResponse | None, generation: int
+    ) -> None:
+        """Require the same open connection and metadata session for a probe."""
+        if not self.connected or self._ws is not ws:
+            msg = "property metadata connection changed"
+            raise EufySdkApiClientCommunicationError(msg)
+        self._check_metadata_generation(generation, "property metadata")
+
+    async def _probe_metadata_connection(
+        self, ws: aiohttp.ClientWebSocketResponse | None, generation: int
+    ) -> None:
+        """Allow raw fallback only after a fresh reply on the same session."""
+        self._check_metadata_connection(ws, generation)
+        try:
+            async with asyncio.timeout(15):
+                reply = await self.rpc("auth.status")
+        except (TimeoutError, aiohttp.ClientError, OSError) as err:
+            msg = "metadata connection probe failed"
+            raise EufySdkApiClientCommunicationError(msg) from err
+        self._check_metadata_connection(ws, generation)
+        auth = reply.get("auth")
+        if reply.get("ok") is not True or not isinstance(auth, dict):
+            msg = "metadata connection probe returned malformed auth status"
+            raise EufySdkApiClientCommunicationError(msg)
+        state = auth.get("state")
+        if state == "ok":
+            return
+        if state in ("require_2fa", "require_captcha"):
+            msg = "bridge authentication required during metadata collection"
+            raise EufySdkApiClientAuthenticationError(msg)
+        if state == "pending":
+            msg = "bridge authentication pending during metadata collection"
+            raise EufySdkApiClientError(msg)
+        msg = "metadata connection probe returned unknown auth state"
+        raise EufySdkApiClientCommunicationError(msg)
 
     async def refresh_event_image(self, sn: str) -> bool:
         """Force a 'Last event' image refresh; returns True if a newer image landed."""
@@ -259,7 +404,35 @@ class EufySdkApiClient:
 
     async def get_properties(self, sn: str) -> list[dict[str, Any]]:
         """Return a device's property manifest (name/type/unit/writable/enumValues)."""
-        return (await self.rpc("device.properties", sn=sn))["properties"]
+        return normalize_properties(await self._property_reply(sn))
+
+    def _invalidate_properties(self) -> None:
+        """Discard manifests when their bridge session is no longer current."""
+        self._metadata_generation += 1
+        self._property_cache.clear()
+
+    def _check_metadata_generation(self, generation: int, subject: str) -> None:
+        """Reject stale data without resetting a socket merely for a ready event."""
+        if generation != self._metadata_generation:
+            msg = f"{subject} belongs to a previous bridge session"
+            if not self.connected:
+                raise EufySdkApiClientCommunicationError(msg)
+            raise EufySdkApiClientError(msg)
+
+    async def _property_reply(
+        self, sn: str, signature: tuple | None = None
+    ) -> dict[str, Any]:
+        """Share metadata across setup and polls, without caching failed replies."""
+        async with self._property_lock:
+            cached = self._property_cache.get(sn)
+            if cached is not None and (signature is None or cached[0] == signature):
+                return cached[1]
+            self._property_cache.pop(sn, None)
+            generation = self._metadata_generation
+            reply = await self.rpc("device.properties", sn=sn)
+            self._check_metadata_generation(generation, "property metadata")
+            self._property_cache[sn] = (signature, reply)
+            return reply
 
     async def get_config(self) -> dict[str, Any]:
         """Return the bridge's runtime config (currently {pollMs})."""

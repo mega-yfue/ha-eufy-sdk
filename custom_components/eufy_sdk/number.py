@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any, NamedTuple
 
-from homeassistant.components.number import NumberEntity, NumberMode
+from homeassistant.components.number import NumberEntity, NumberMode, RestoreNumber
 from homeassistant.const import PERCENTAGE, EntityCategory
 from homeassistant.core import callback
 from homeassistant.helpers.event import async_track_time_interval
@@ -31,7 +31,7 @@ if TYPE_CHECKING:
     from .data import EufySdkConfigEntry
 
 
-# The manifest carries no min/max, so pick a sane range from the value's `kind`.
+# Fallback range by `kind`, for a spec that carries no min/max of its own.
 _RANGE_BY_KIND = {"percent": (0, 100), "seconds": (0, 86400), "degrees": (0, 360)}
 _DEFAULT_RANGE = (0, 65535)
 # Kinds with a small, bounded range read better as a slider than a text box.
@@ -66,8 +66,15 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
-class EufySdkNumber(EufySdkPropertyEntity, NumberEntity):
-    """A writable numeric property as a number."""
+class EufySdkNumber(EufySdkPropertyEntity, RestoreNumber):
+    """
+    A writable numeric property as a number.
+
+    A write-only setting (`writeOnly` in the spec: a HomeBase's alarm volume) is
+    accepted by the device but never reported back, so there is no state to read. It
+    is shown as assumed state holding the last value written, restored across restarts,
+    instead of an "unknown" that never updates.
+    """
 
     _attr_native_step = 1
     _attr_entity_category = EntityCategory.CONFIG
@@ -83,11 +90,28 @@ class EufySdkNumber(EufySdkPropertyEntity, NumberEntity):
         if spec.get("unit"):
             self._attr_native_unit_of_measurement = spec["unit"]
         kind = spec.get("kind")
+        # Prefer the spec's own bounds when it carries them (a write-only setting
+        # declares its real range), else derive one from the value's kind.
         low, high = _RANGE_BY_KIND.get(kind, _DEFAULT_RANGE)
+        if isinstance(spec.get("min"), (int, float)):
+            low = spec["min"]
+        if isinstance(spec.get("max"), (int, float)):
+            high = spec["max"]
         self._attr_native_min_value = low
         self._attr_native_max_value = high
         # A percentage (brightness, volume) is a slider; open-ended values a box.
         self._attr_mode = NumberMode.SLIDER if kind in _SLIDER_KINDS else NumberMode.BOX
+        if self.write_only:
+            self._attr_assumed_state = True
+
+    async def async_added_to_hass(self) -> None:
+        """Restore a write-only setting's last written value: nothing reads it back."""
+        await super().async_added_to_hass()
+        if not self.write_only or self._assumed_value is not None:
+            return
+        last = await self.async_get_last_number_data()
+        if last is not None and last.native_value is not None:
+            self._assumed_value = last.native_value
 
     @property
     def native_value(self) -> float | None:

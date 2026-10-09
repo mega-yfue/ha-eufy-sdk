@@ -6,6 +6,9 @@
       },
       "connectivity": {
         "name": "Connectiviteit"
+      },
+      "package": {
+        "name": "Pakket"
       }
     },
     "button": {
@@ -47,6 +50,15 @@
     "select": {
       "preset": {
         "name": "Voorinstelling"
+      },
+      "snapshot_policy": {
+        "name": "Snapshotbeleid",
+        "state": {
+          "default": "Standaard",
+          "auto": "Automatisch",
+          "stored": "Opgeslagen",
+          "live": "Live"
+        }
       }
     },
     "sensor": {
@@ -61,6 +73,9 @@
       },
       "light_effect": {
         "name": "Lichteffect"
+      },
+      "current_mode": {
+        "name": "Huidige modus"
       }
     },
     "switch": {
@@ -98,7 +113,7 @@
       },
       "captcha": {
         "title": "Captcha",
-        "description": "Voer de tekens over van de onderstaande afbeelding (vink Vernieuwen aan voor een nieuwe).\n\n{image}",
+        "description": "Neem de tekens over van de onderstaande afbeelding (vink Vernieuwen aan voor een nieuwe).\n\n{image}",
         "data": {
           "answer": "Captcha",
           "refresh": "Afbeelding vernieuwen"

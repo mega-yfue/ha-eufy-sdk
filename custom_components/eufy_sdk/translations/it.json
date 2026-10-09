@@ -6,6 +6,9 @@
       },
       "connectivity": {
         "name": "Connettività"
+      },
+      "package": {
+        "name": "Pacco"
       }
     },
     "button": {
@@ -47,6 +50,15 @@
     "select": {
       "preset": {
         "name": "Preset"
+      },
+      "snapshot_policy": {
+        "name": "Modalità snapshot",
+        "state": {
+          "default": "Predefinita",
+          "auto": "Automatica",
+          "stored": "Salvata",
+          "live": "Dal vivo"
+        }
       }
     },
     "sensor": {
@@ -61,6 +73,9 @@
       },
       "light_effect": {
         "name": "Effetto luce"
+      },
+      "current_mode": {
+        "name": "Modalità attuale"
       }
     },
     "switch": {
