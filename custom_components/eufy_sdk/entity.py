@@ -311,6 +311,10 @@ class EufySdkPropertyEntity(EufySdkDeviceEntity):
         self._spec = spec
         self._prop: str = spec["name"]
         self._attr_unique_id = f"{sn}_{self._prop}"
+        # A read-only property the device has never reported would only ever show
+        # unknown, so it starts disabled. It can be enabled, and fills in once reported.
+        if not spec.get("writable") and spec.get("reported") is False:
+            self._attr_entity_registry_enabled_default = False
         if not self._named_by_translation:
             self._attr_name = label_for(self._prop)
         self._post_write_unsub: Callable[[], None] | None = None
