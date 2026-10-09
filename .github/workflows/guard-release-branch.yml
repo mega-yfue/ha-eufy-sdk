@@ -4,8 +4,10 @@
 # time. So when someone WITHOUT write access opens a PR straight against `main`, this closes it with a
 # friendly note pointing them at `dev`, rather than leaving it to sit and confuse everyone.
 #
-# Who is exempt: anyone whose `author_association` is OWNER / MEMBER / COLLABORATOR (a maintainer doing
-# a release or a hotfix), and bots (Dependabot etc., which target the default branch by design).
+# Who is exempt: any PR whose head branch lives in this repository (only someone with write access can
+# push one, so that covers a maintainer doing a release or a hotfix), and bots (Dependabot etc., which
+# target the default branch by design). Not `author_association`: the event payload reports a private
+# org member as a plain contributor, so it closed maintainers' own release PRs.
 #
 # `pull_request_target` runs in the BASE repo with a write token even for fork PRs — which is why it can
 # comment + close. It deliberately does NOT check out or run any PR code (only `gh` on PR metadata), so
@@ -26,10 +28,10 @@ permissions:
 jobs:
   guard:
     runs-on: ubuntu-latest
-    # Skip maintainers and bots — only outside contributors get redirected.
+    # Skip same-repo branches and bots — only PRs from a fork get redirected.
     if: >-
       github.event.pull_request.user.type != 'Bot' &&
-      !contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association)
+      github.event.pull_request.head.repo.full_name != github.repository
     steps:
       - name: Close and point the author at dev
         env:
