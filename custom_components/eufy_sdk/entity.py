@@ -334,9 +334,9 @@ class EufySdkPropertyEntity(EufySdkDeviceEntity):
         )
 
     @callback
-    def _property_event_filter(self, event: Event) -> bool:
+    def _property_event_filter(self, data: dict[str, Any]) -> bool:
         """Accept only valued realtime reports for this property entity."""
-        data = event.data
+        # Home Assistant passes an event_filter the event's data dict, not the Event.
         return (
             data.get("event") == "propertyChanged"
             and (data.get("deviceSn") or data.get("sn")) == self._sn
