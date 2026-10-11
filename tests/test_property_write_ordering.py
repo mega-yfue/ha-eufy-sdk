@@ -67,6 +67,27 @@ class TestPropertyWriteOrdering(IsolatedAsyncioTestCase):
         apply_property_changed_event(coordinator, data)
         entity._handle_property_changed(SimpleNamespace(data=data))
 
+    def test_property_event_filter_accepts_event_data_dict(self) -> None:
+        """HA 2026.10+ hands event filters the event data dict instead of the Event."""
+        entity, _coordinator, _client = self._entity()
+
+        assert entity._property_event_filter(
+            {
+                "event": "propertyChanged",
+                "deviceSn": "camera",
+                "property": "enabled",
+                "value": True,
+            }
+        )
+        assert not entity._property_event_filter(
+            {
+                "event": "propertyChanged",
+                "deviceSn": "other",
+                "property": "enabled",
+                "value": True,
+            }
+        )
+
     def test_property_event_filter_rejects_unrelated_events(self) -> None:
         """Only matching valued property reports reach the entity callback."""
         entity, _coordinator, _client = self._entity()

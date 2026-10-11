@@ -336,7 +336,8 @@ class EufySdkPropertyEntity(EufySdkDeviceEntity):
     @callback
     def _property_event_filter(self, event: Event) -> bool:
         """Accept only valued realtime reports for this property entity."""
-        data = event.data
+        # HA 2026.10+ hands filters the event data dict (older cores: the Event)
+        data = event.data if hasattr(event, "data") else event
         return (
             data.get("event") == "propertyChanged"
             and (data.get("deviceSn") or data.get("sn")) == self._sn
