@@ -224,6 +224,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: EufySdkConfigEntry) -> b
             properties[sn] = await client.get_properties(sn)
         except Exception as err:  # noqa: BLE001 - one bad device must not abort setup
             LOGGER.warning("could not fetch properties for %s: %s", sn, err)
+            continue
+        # The bridge reports wifiRssi in a device's state but does not declare it in the
+        # property manifest, so no sensor is created. Declare it when the device reports it.
+        if "wifiRssi" in (dev.get("state") or {}) and not any(
+            p.get("name") == "wifiRssi" for p in properties[sn]
+        ):
+            properties[sn].append(
+                {
+                    "name": "wifiRssi",
+                    "type": "number",
+                    "kind": "dbm",
+                    "unit": "dBm",
+                    "writable": False,
+                }
+            )
     entry.runtime_data.properties = properties
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
