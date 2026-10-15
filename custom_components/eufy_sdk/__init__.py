@@ -37,6 +37,7 @@ from .const import (
 from .coordinator import EufySdkDataUpdateCoordinator
 from .data import EufySdkData
 from .property_sync import apply_property_changed_event
+from .vacuum_display import disable_hidden_entities
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -215,20 +216,32 @@ async def async_setup_entry(hass: HomeAssistant, entry: EufySdkConfigEntry) -> b
     except Exception as err:  # noqa: BLE001 - a failed config push shouldn't block setup
         LOGGER.warning("could not set bridge poll interval: %s", err)
 
-    # Property manifests are static per device — fetch once so the platforms can
-    # build switch/select/number/sensor entities. A device that fails is skipped.
+    properties = await _fetch_properties(client, coordinator.data)
+    entry.runtime_data.properties = properties
+    disable_hidden_entities(hass, entry, coordinator.data, properties)
+
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    return True
+
+
+async def _fetch_properties(
+    client: EufySdkApiClient, devices: dict[str, dict]
+) -> dict[str, list]:
+    """
+    Fetch each device's property manifest, skipping a device that fails.
+
+    Manifests are static per device — fetched once so the platforms can build
+    switch/select/number/sensor entities.
+    """
     properties: dict[str, list] = {}
-    for sn, dev in coordinator.data.items():
+    for sn, dev in devices.items():
         if dev.get("error"):
             continue
         try:
             properties[sn] = await client.get_properties(sn)
         except Exception as err:  # noqa: BLE001 - one bad device must not abort setup
             LOGGER.warning("could not fetch properties for %s: %s", sn, err)
-    entry.runtime_data.properties = properties
-
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    return True
+    return properties
 
 
 async def async_remove_config_entry_device(

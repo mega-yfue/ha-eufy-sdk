@@ -28,6 +28,7 @@ from .const import (
     DOMAIN,
     LOGGER,
 )
+from .vacuum_display import DISPLAY_MINOR_VERSION
 
 if TYPE_CHECKING:
     from homeassistant.helpers.service_info.hassio import HassioServiceInfo
@@ -37,6 +38,8 @@ class EufySdkFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     """Ask for the bridge address, then walk the user through login (2FA / captcha)."""
 
     VERSION = 1
+    # 2: hidden RoboVac entities are disabled in the registry (vacuum_display).
+    MINOR_VERSION = DISPLAY_MINOR_VERSION
 
     @staticmethod
     @callback

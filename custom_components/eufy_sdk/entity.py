@@ -16,10 +16,15 @@ from homeassistant.util import dt as dt_util
 from .const import ATTRIBUTION, DOMAIN, EVENT_TYPE, SOLIX_READING_EVENT
 from .coordinator import EufySdkDataUpdateCoordinator
 from .schedule_logic import MODE_SCHEDULE, next_schedule_boundary
+from .vacuum_display import LABELS as VACUUM_LABELS
+from .vacuum_display import category as vacuum_category
+from .vacuum_display import hidden as vacuum_hidden
+from .vacuum_display import is_vacuum
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Iterator
 
+    from homeassistant.const import EntityCategory
     from homeassistant.core import Event, HomeAssistant
 
     from .api import EufySdkApiClient
@@ -317,6 +322,15 @@ class EufySdkPropertyEntity(EufySdkDeviceEntity):
             self._attr_entity_registry_enabled_default = False
         if not self._named_by_translation:
             self._attr_name = label_for(self._prop)
+        # A RoboVac reports far more than a device page should list: vacuum_display
+        # decides which properties lead, which go under Diagnostics, which start off.
+        self._category_override: tuple[bool, EntityCategory | None] = (False, None)
+        if is_vacuum(self.device):
+            self._category_override = vacuum_category(spec)
+            if vacuum_hidden(spec):
+                self._attr_entity_registry_enabled_default = False
+            if not self._named_by_translation and self._prop in VACUUM_LABELS:
+                self._attr_name = VACUUM_LABELS[self._prop]
         self._post_write_unsub: Callable[[], None] | None = None
         self._post_write_owner: int | None = None
         self._assumed_value: Any = None
@@ -372,6 +386,12 @@ class EufySdkPropertyEntity(EufySdkDeviceEntity):
         self._optimistic_owner = None
         self._assumed_value = None
         self.async_write_ha_state()
+
+    @property
+    def entity_category(self) -> EntityCategory | None:
+        """The platform's category, unless a device display policy overrides it."""
+        override, category = self._category_override
+        return category if override else super().entity_category
 
     @property
     def prop_value(self) -> Any:

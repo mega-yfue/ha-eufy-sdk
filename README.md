@@ -50,6 +50,9 @@ Entities are built from what each device reports, so you only get what your hard
 - **Locks** — where the account exposes a supported lock.
 - **Robot vacuums & lawn mowers** — recognised and surfaced as sensors, switches, and buttons.
   There's no dedicated HA vacuum/mower card yet (start/dock live as controls, not a robot entity).
+  Every RoboVac shows the same short list up top (status, battery, charging, error, clean mode,
+  suction, mop level, dock); consumable hours, run statistics and everyday settings sit under
+  Diagnostics, and the rest of the readings are created disabled — enable any from the entity list.
 
 **Anker Solix** (power stations / smart meter) is a **separate account** and is **not** in the public
 bridge — it ships only in the bridge's `dev`/beta image. With that build, Solix devices appear as
