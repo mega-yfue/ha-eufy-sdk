@@ -185,5 +185,18 @@
       "package_taken": "Package taken",
       "package_stranded": "Package left out"
     }
+  },
+  "issues": {
+    "preload_battery_camera": {
+      "title": "Stream preloading drains {camera}",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Turn off stream preloading for {camera}",
+            "description": "{camera} runs on battery, and \"Preload camera stream\" is on for it. Home Assistant then keeps its stream running permanently and reconnects whenever it ends, which wakes the camera over and over and drains its battery.\n\nSubmit to turn preloading off for this camera. Live view still works; it just starts when you open it."
+          }
+        }
+      }
+    }
   }
 }
