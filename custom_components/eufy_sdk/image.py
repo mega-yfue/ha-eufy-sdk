@@ -1,4 +1,4 @@
-"""Image platform — the latest detected-event thumbnail, one per camera."""
+"""Image platform — per camera: the last event thumbnail and the last screen."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from homeassistant.util import dt as dt_util
 
 from .const import CONF_HOST, CONF_PORT, EVENT_TYPE
 from .entity import EufySdkDeviceEntity
-from .pushmap import EVENT_IMAGE_REFRESH, THUMBNAIL_EVENTS
+from .pushmap import EVENT_IMAGE_REFRESH, LAST_SCREEN_REFRESH, THUMBNAIL_EVENTS
 
 if TYPE_CHECKING:
     from homeassistant.core import Event, HomeAssistant
@@ -32,14 +32,14 @@ async def async_setup_entry(
     entry: EufySdkConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Create a latest-event image for every device the bridge exposes as a camera."""
+    """Create Last event and Last screen images for every camera the bridge exposes."""
     coordinator = entry.runtime_data.coordinator
     host = entry.data[CONF_HOST]
     port = entry.data[CONF_PORT]
+    cameras = [sn for sn, dev in coordinator.data.items() if dev.get("stream")]
     async_add_entities(
-        EufySdkEventImage(hass, coordinator, sn, host, port)
-        for sn, dev in coordinator.data.items()
-        if dev.get("stream")
+        [EufySdkEventImage(hass, coordinator, sn, host, port) for sn in cameras]
+        + [EufySdkLastScreenImage(hass, coordinator, sn, host, port) for sn in cameras]
     )
 
 
@@ -144,3 +144,78 @@ class EufySdkEventImage(EufySdkDeviceEntity, ImageEntity):
     async def async_image(self) -> bytes | None:
         """Return the last thumbnail we fetched (HA's image proxy calls this)."""
         return self._image
+
+
+class EufySdkLastScreenImage(EufySdkEventImage):
+    """
+    The last picture someone watched live on this camera ("Last screen").
+
+    Kept by the bridge while a live stream runs (~5 s in, every 30 s, at the end)
+    and served at `/last-screen/<sn>` — apart from "Last event", so a detection
+    never replaces what was last seen. Refreshes on the bridge's
+    `lastScreenUpdated` nudge only (after live viewing or the "Take screenshot"
+    button) — never on the coordinator poll, so nothing refreshes it on a timer
+    and a battery camera is never woken for it. `image_last_updated` is when the
+    picture was taken (`x-saved-at`), not when HA fetched it. Unavailable image
+    (404) until the camera was watched or screenshotted once.
+    """
+
+    _attr_translation_key = "last_screen"
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        coordinator: EufySdkDataUpdateCoordinator,
+        sn: str,
+        host: str,
+        port: int,
+    ) -> None:
+        """Bind to a device serial + the bridge address."""
+        super().__init__(hass, coordinator, sn, host, port)
+        self._attr_unique_id = f"{sn}_last_screen"
+        self._url = f"http://{host}:{port}/last-screen/{sn}"
+        self._saved_at = None
+
+    @callback
+    def _handle_event(self, event: Event) -> None:
+        """Re-pull only on the bridge's last-screen nudge for this camera."""
+        data = event.data
+        if (
+            data.get("deviceSn") == self._sn
+            and data.get("event") == LAST_SCREEN_REFRESH
+        ):
+            self.hass.async_create_task(self._refresh())
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Only write state — the last screen changes on its nudge, not on the poll."""
+        EufySdkDeviceEntity._handle_coordinator_update(self)  # noqa: SLF001
+
+    async def _refresh(self) -> None:
+        """Fetch the last screen; on new bytes stamp the time the picture was taken."""
+        async with self._refresh_lock:
+            data = await self._fetch()
+            if data is None:
+                return
+            digest = hashlib.sha1(data, usedforsecurity=False).hexdigest()
+            if digest == self._hash:
+                return
+            self._image = data
+            self._hash = digest
+            self._attr_image_last_updated = self._saved_at or dt_util.utcnow()
+            self.async_write_ha_state()
+
+    async def _fetch(self) -> bytes | None:
+        """GET the last screen, remembering `x-saved-at`; None if there is none yet."""
+        session = async_get_clientsession(self.hass)
+        try:
+            timeout = aiohttp.ClientTimeout(total=15)
+            resp = await session.get(self._url, timeout=timeout)
+            if resp.status != HTTPStatus.OK:
+                return None
+            self._saved_at = dt_util.parse_datetime(
+                resp.headers.get("x-saved-at", "") or ""
+            )
+            return await resp.read()
+        except (aiohttp.ClientError, TimeoutError):
+            return None

@@ -354,6 +354,15 @@ class EufySdkApiClient:
         """Force a 'Last event' image refresh; returns True if a newer image landed."""
         return bool((await self.rpc("event.refresh", sn=sn)).get("changed"))
 
+    async def take_screenshot(self, sn: str) -> int:
+        """
+        Take a fresh still from the camera and keep it as its "Last screen".
+
+        Wakes a battery camera (10-20 s), hence the long timeout. Returns the JPEG size;
+        the image entity follows on the bridge's `lastScreenUpdated` nudge.
+        """
+        return int((await self.rpc("screen.take", timeout=45, sn=sn)).get("bytes", 0))
+
     async def list_solix_devices(self) -> list[dict[str, Any]]:
         """Return the Anker Solix devices (empty if Solix isn't configured)."""
         # Each: {sn, productCode, name, category, capabilities, values, firmware}.
