@@ -35,8 +35,13 @@ def valid_read_metadata(manifest: Any) -> bool:
     return True
 
 
-def _reads(manifest: Any) -> dict[str, tuple[str, dict] | None]:
-    """Index flat property names, refusing ambiguous capability mappings."""
+def _reads(manifest: Any, decoded: Any = None) -> dict[str, tuple[str, dict] | None]:
+    """
+    Index flat property names, refusing ambiguous capability mappings.
+
+    A snapshot may resolve compatible read-only mappings whose valid values
+    agree. Metadata alone never resolves a collision or selects a write route.
+    """
     result: dict[str, tuple[str, dict] | None] = {}
     if not isinstance(manifest, dict) or not isinstance(manifest.get("details"), list):
         return result
@@ -53,6 +58,26 @@ def _reads(manifest: Any) -> dict[str, tuple[str, dict] | None]:
             name, accessor = read.get("property"), read.get("accessor")
             if not isinstance(name, str) or not isinstance(accessor, str):
                 continue
+            previous = result.get(name)
+            if previous is not None and isinstance(decoded, dict):
+                previous_namespace, previous_read = previous
+                previous_surface = decoded.get(previous_namespace)
+                surface = decoded.get(namespace)
+                if (
+                    previous_read.get("writable") is False
+                    and read.get("writable") is False
+                    and all(
+                        previous_read.get(field) == read.get(field)
+                        for field in ("type", "kind", "unit", "values", "labels")
+                    )
+                    and isinstance(previous_surface, dict)
+                    and isinstance(surface, dict)
+                ):
+                    value = _value(read, surface.get(accessor))
+                    if value is not None and value == _value(
+                        previous_read, previous_surface.get(previous_read["accessor"])
+                    ):
+                        continue
             result[name] = None if name in result else (namespace, read)
     return result
 
@@ -132,8 +157,8 @@ def normalize_snapshot(
     manifest = metadata.get("decodedProperties")
     if not isinstance(manifest, dict):
         return device
-    reads = _reads(manifest)
     decoded = device.get("decodedState")
+    reads = _reads(manifest, decoded)
     raw = device.get("state")
     state = dict(raw) if isinstance(raw, dict) else {}
     for name, mapping in reads.items():
