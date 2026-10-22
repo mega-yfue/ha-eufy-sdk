@@ -12,14 +12,16 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.lock import LockEntity
+from homeassistant.core import callback
 from homeassistant.helpers.event import async_call_later
 
+from .const import EVENT_TYPE
 from .entity import EufySdkDeviceEntity, has_capability
 
 LOCK_OWNED_PROPS = frozenset({"locked"})
 
 if TYPE_CHECKING:
-    from homeassistant.core import HomeAssistant
+    from homeassistant.core import Event, HomeAssistant
     from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
     from .coordinator import EufySdkDataUpdateCoordinator
@@ -55,14 +57,34 @@ class EufySdkLock(EufySdkDeviceEntity, LockEntity):
         self._attr_unique_id = f"{sn}_lock"
         self._post_action_unsub = None
         self._assumed_locked: bool | None = None
+        self._reported_locked: bool | None = None
 
     @property
     def is_locked(self) -> bool | None:
-        """The held optimistic state if set, else the last polled `locked` value."""
+        """The optimistic state, else snapshot state with a reported-state fallback."""
         if self._assumed_locked is not None:
             return self._assumed_locked
         v = self.device.get("state", {}).get("locked")
-        return None if v is None else bool(v)
+        return self._reported_locked if v is None else bool(v)
+
+    async def async_added_to_hass(self) -> None:
+        """Subscribe to the bridge's decoded lock-state reports."""
+        await super().async_added_to_hass()
+        self.async_on_remove(self.hass.bus.async_listen(EVENT_TYPE, self._handle_event))
+
+    @callback
+    def _handle_event(self, event: Event) -> None:
+        """Apply a reported lock transition and release any optimistic hold."""
+        data = event.data
+        if data.get("event") != "lockState" or data.get("deviceSn") != self._sn:
+            return
+        locked = data.get("locked")
+        if not isinstance(locked, bool):
+            return
+        self._reported_locked = locked
+        self.device.setdefault("state", {})["locked"] = locked
+        self._assumed_locked = None
+        self.coordinator.async_update_listeners()
 
     async def async_lock(self, **_: Any) -> None:
         """Lock the deadbolt/door."""
