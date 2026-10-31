@@ -1,4 +1,4 @@
-"""Button platform — device-level actions the bridge exposes (reboot, PTZ)."""
+"""Button platform — device-level actions the bridge exposes (reboot, PTZ, lid)."""
 
 from __future__ import annotations
 
@@ -64,6 +64,14 @@ async def async_setup_entry(
             for action, meta in _PTZ_STEPS.items()
         )
         entities.append(EufySdkGotoPresetButton(coordinator, sn))
+    # Open the lid of a standalone SmartDrop, gated on the `smart_drop` capability the
+    # bridge reports. A SmartDrop paired to a HomeBase S1 Pro does not carry it: that
+    # hub refuses the open command, so the button would only ever fail there.
+    entities.extend(
+        EufySdkOpenLidButton(coordinator, sn)
+        for sn, dev in coordinator.data.items()
+        if has_capability(dev, "smart_drop")
+    )
     async_add_entities(entities)
 
 
@@ -83,6 +91,29 @@ class EufySdkRebootButton(EufySdkDeviceEntity, ButtonEntity):
         """Reboot the HomeBase (it drops offline for a minute or two)."""
         client = self.client
         await client.reboot(self._sn)
+
+
+class EufySdkOpenLidButton(EufySdkDeviceEntity, ButtonEntity):
+    """
+    Open a SmartDrop's lid.
+
+    Fire-and-forget like the PTZ steps: a press that returns without raising means the
+    command reached the parcel box, not that the lid finished opening. The box shuts the
+    lid again on its own.
+    """
+
+    _attr_icon = "mdi:package-variant"
+    _attr_translation_key = "open_lid"
+
+    def __init__(self, coordinator: EufySdkDataUpdateCoordinator, sn: str) -> None:
+        """Bind to a SmartDrop serial."""
+        super().__init__(coordinator, sn)
+        self._attr_unique_id = f"{sn}_open_lid"
+
+    async def async_press(self) -> None:
+        """Ask the bridge to open the lid."""
+        client = self.client
+        await client.action(self._sn, "openLid")
 
 
 class EufyRefreshEventButton(EufySdkDeviceEntity, ButtonEntity):
