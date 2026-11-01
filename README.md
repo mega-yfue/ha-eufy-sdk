@@ -55,6 +55,20 @@ Entities are built from what each device reports, so you only get what your hard
 bridge — it ships only in the bridge's `dev`/beta image. With that build, Solix devices appear as
 sensors. The eufyMake 3D printer isn't supported yet.
 
+## Optical views
+
+With a bridge that advertises optical `views`, each view has its own Camera entity,
+live source and snapshot selection under the same physical device. The primary
+camera keeps its existing identity and name; additional cameras are named **View N**.
+This follows the bridge inventory rather than assuming that a particular model has
+two lenses. Bridges without this inventory continue to create one camera per device.
+
+This requires the optical-view API in
+[bridge PR #164](https://github.com/mega-yfue/ha-eufy-sdk-bridge/pull/164).
+The snapshot policy remains shared by the physical camera, and a secondary view
+never substitutes the primary view's event image. Its **Stored** snapshot may be
+unavailable until the bridge has retained a picture for that view.
+
 ## Snapshot policy
 
 The Camera entities expose a per-camera **Snapshot policy** select that controls how
