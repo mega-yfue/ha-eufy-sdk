@@ -26,8 +26,16 @@ def bridge_mode_for_policy(policy: str | None) -> str | None:
     return None if normalized == SNAPSHOT_POLICY_DEFAULT else normalized
 
 
-def snapshot_url(host: str, port: int, sn: str, policy: str | None) -> str:
+def snapshot_url(
+    host: str,
+    port: int,
+    sn: str,
+    policy: str | None,
+    *,
+    snapshot_path: str | None = None,
+) -> str:
     """Build a snapshot URL, omitting the mode for configured bridge behavior."""
-    url = f"http://{host}:{port}/snapshot/{sn}"
+    url = f"http://{host}:{port}{snapshot_path or f'/snapshot/{sn}'}"
     mode = bridge_mode_for_policy(policy)
-    return f"{url}?mode={mode}" if mode else url
+    separator = "&" if "?" in url else "?"
+    return f"{url}{separator}mode={mode}" if mode else url
