@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from unittest import IsolatedAsyncioTestCase
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -78,3 +79,15 @@ class TestLockRealtime(IsolatedAsyncioTestCase):
             self.coordinator.data = {"lock": {"state": {"locked": not locked}}}
             self.coordinator.async_update_listeners()
             assert self.entity.is_locked is not locked
+
+    async def test_post_action_reconcile_runs_on_the_event_loop(self) -> None:
+        """The delayed reconcile runs on the loop and releases the optimistic hold."""
+        self.coordinator.async_request_refresh = AsyncMock()
+        with patch("custom_components.eufy_sdk.lock.POST_ACTION_REFRESH_SECS", 0):
+            await self.entity.async_lock()
+        assert self.entity.is_locked is True
+        await asyncio.sleep(0.05)
+        await self.hass.async_block_till_done()
+        self.coordinator.async_request_refresh.assert_awaited_once_with()
+        assert self.entity._assumed_locked is None
+        assert self.entity._post_action_unsub is None
