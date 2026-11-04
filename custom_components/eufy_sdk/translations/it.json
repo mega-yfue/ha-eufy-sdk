@@ -32,6 +32,9 @@
       },
       "preset_goto": {
         "name": "Vai al preset"
+      },
+      "open_lid": {
+        "name": "Apri sportello"
       }
     },
     "event": {

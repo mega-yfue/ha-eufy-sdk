@@ -32,6 +32,9 @@
       },
       "preset_goto": {
         "name": "Ga naar voorinstelling"
+      },
+      "open_lid": {
+        "name": "Klep openen"
       }
     },
     "event": {
