@@ -234,9 +234,14 @@ class EufySdkDeviceEntity(CoordinatorEntity[EufySdkDataUpdateCoordinator]):
 # judge staleness here. The window differs by device class (the SDK leaves the threshold
 # to the host): a mains device reports constantly, a battery one far less often, and a
 # battery sensor can be silent for days by design.
-_OFFLINE_WINDOW_STATION_MS = 30 * 60 * 1000
 _OFFLINE_WINDOW_MAINS_CAMERA_MS = 30 * 60 * 1000
 _OFFLINE_WINDOW_BATTERY_CAMERA_MS = 6 * 60 * 60 * 1000
+
+
+def _homebase_attached(record: dict) -> bool:
+    """Whether the bridge names a station this device hangs off other than itself."""
+    station = record.get("stationSn")
+    return isinstance(station, str) and bool(station) and station != record.get("sn")
 
 
 def _staleness_window_ms(record: dict) -> int | None:
@@ -245,10 +250,19 @@ def _staleness_window_ms(record: dict) -> int | None:
 
     `None` means this class is silent by design (sensors, locks, lights) and never
     goes offline from `lastSeenMs` alone.
+
+    A HomeBase and every device attached to one are silent by design too: the
+    station holds the transport, the bridge reports no `p2pReachable` for an
+    attached device, and an attached camera's `lastSeenMs` moves only when it
+    reports an event — a quiet outdoor camera passes any window every night
+    (#167, #168). An idle HomeBase's `lastSeenMs` can be hours old while it arms,
+    disarms and streams. So they are judged by `availability` and a live feed
+    only. The bridge names a device's station in `stationSn` (its own serial when
+    standalone); without it a camera is judged as before.
     """
     codec = record.get("codec")
-    if codec == "station":
-        return _OFFLINE_WINDOW_STATION_MS
+    if codec == "station" or _homebase_attached(record):
+        return None
     if codec == "camera":
         # The bridge tags a camera's supply; a battery camera reports far less
         # often than a wired one.

@@ -137,6 +137,52 @@ class LivenessFactTests(unittest.TestCase):
         }
         self.assertFalse(device_offline(rec_fresh, now_ms=self.NOW))
 
+    def test_a_homebase_attached_camera_is_never_offline_from_staleness(self):
+        # #167/#168: a battery camera on a HomeBase with no event since the morning.
+        rec = {
+            "sn": "T8170P0000000001",
+            "stationSn": "T8030P0000000001",
+            "codec": "camera",
+            "power": "battery",
+            "lastSeenMs": self.NOW - 14 * 60 * 60 * 1000,
+            "state": {"deviceStatus": True},
+        }
+        self.assertFalse(device_offline(rec, now_ms=self.NOW))
+
+    def test_a_homebase_is_never_offline_from_staleness(self):
+        # An idle HomeBase keeps arming and streaming while lastSeenMs is hours old.
+        rec = {
+            "sn": "T8030P0000000001",
+            "stationSn": "T8030P0000000001",
+            "codec": "station",
+            "lastSeenMs": self.NOW - 13 * 60 * 60 * 1000,
+            "state": {},
+        }
+        self.assertFalse(device_offline(rec, now_ms=self.NOW))
+
+    def test_a_standalone_battery_camera_still_goes_offline_when_silent(self):
+        # #133 stays fixed: a standalone camera is its own station.
+        rec = {
+            "sn": "T8151P0000000001",
+            "stationSn": "T8151P0000000001",
+            "codec": "camera",
+            "power": "battery",
+            "lastSeenMs": self.NOW - 7 * 60 * 60 * 1000,
+            "state": {"deviceStatus": True},
+        }
+        self.assertTrue(device_offline(rec, now_ms=self.NOW))
+
+    def test_an_attached_camera_still_follows_explicit_availability(self):
+        rec = {
+            "sn": "T8170P0000000001",
+            "stationSn": "T8030P0000000001",
+            "codec": "camera",
+            "power": "battery",
+            "availability": "unavailable",
+            "lastSeenMs": self.NOW - 60_000,
+        }
+        self.assertTrue(device_offline(rec, now_ms=self.NOW))
+
     def test_a_sensor_is_never_offline_from_staleness(self):
         # Silent by design — days without a report is healthy.
         rec = {"codec": "sensor", "lastSeenMs": self.NOW - 3 * 24 * 60 * 60 * 1000}
