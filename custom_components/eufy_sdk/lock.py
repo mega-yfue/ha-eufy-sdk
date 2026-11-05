@@ -106,6 +106,7 @@ class EufySdkLock(EufySdkDeviceEntity, LockEntity):
             self.hass, POST_ACTION_REFRESH_SECS, self._post_action_refresh
         )
 
+    @callback
     def _post_action_refresh(self, _now: Any) -> None:
         """Fire the delayed post-action reconcile."""
         self._post_action_unsub = None
