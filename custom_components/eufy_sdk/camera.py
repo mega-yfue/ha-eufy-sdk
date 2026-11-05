@@ -23,6 +23,8 @@ from .preload import async_check_preload, on_battery_power
 from .snapshot_policy import snapshot_url
 
 if TYPE_CHECKING:
+    from typing import Any
+
     from homeassistant.components.stream import Stream
     from homeassistant.core import HomeAssistant
     from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -36,15 +38,16 @@ async def async_setup_entry(
     entry: EufySdkConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Create a camera for every device the bridge marked with a `stream` path."""
+    """Create cameras for the bridge's advertised optical views or legacy stream."""
     coordinator = entry.runtime_data.coordinator
     host = entry.data[CONF_HOST]
     port = entry.data[CONF_PORT]
     rtsp_port = int(entry.data.get(CONF_GO2RTC_RTSP_PORT, DEFAULT_GO2RTC_RTSP_PORT))
     async_add_entities(
-        EufySdkCamera(coordinator, sn, host, port, rtsp_port)
+        EufySdkCamera(coordinator, sn, host, port, rtsp_port, view=view)
         for sn, dev in coordinator.data.items()
         if dev.get("stream")
+        for view in dev.get("views", [None])
     )
 
 
@@ -56,13 +59,15 @@ class EufySdkCamera(CoordinatorEntity["EufySdkDataUpdateCoordinator"], Camera):
     _attr_attribution = ATTRIBUTION
     _attr_supported_features = CameraEntityFeature.STREAM
 
-    def __init__(
+    def __init__(  # noqa: PLR0913 - retain the existing address arguments and add view selection
         self,
         coordinator: EufySdkDataUpdateCoordinator,
         sn: str,
         host: str,
         port: int,
         rtsp_port: int,
+        *,
+        view: dict[str, Any] | None = None,
     ) -> None:
         """Bind to a device serial + the bridge address."""
         CoordinatorEntity.__init__(self, coordinator)
@@ -71,7 +76,14 @@ class EufySdkCamera(CoordinatorEntity["EufySdkDataUpdateCoordinator"], Camera):
         self._host = host
         self._port = port
         self._rtsp_port = rtsp_port
-        self._attr_unique_id = f"{sn}_camera"
+        self._view = view["view"] if view else 0
+        self._stream_id = view["id"] if view else sn
+        self._snapshot_path = view["snapshot"] if view else None
+        self._attr_unique_id = (
+            f"{sn}_camera" if self._view == 0 else f"{sn}_camera_view_{self._view}"
+        )
+        if self._view != 0:
+            self._attr_name = f"View {self._view}"
         dev = coordinator.data.get(sn, {})
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, sn)},
@@ -95,11 +107,18 @@ class EufySdkCamera(CoordinatorEntity["EufySdkDataUpdateCoordinator"], Camera):
             super().available
             and self._sn in self.coordinator.data
             and not device_offline(self.coordinator.data.get(self._sn))
+            and (
+                self._view == 0
+                or any(
+                    view["view"] == self._view
+                    for view in self.coordinator.data[self._sn].get("views", [])
+                )
+            )
         )
 
     async def stream_source(self) -> str:
         """Return the go2rtc RTSP URL — HA's stream component + go2rtc do the work."""
-        return f"rtsp://{self._host}:{self._rtsp_port}/{self._sn}"
+        return f"rtsp://{self._host}:{self._rtsp_port}/{self._stream_id}"
 
     async def async_create_stream(self) -> Stream | None:
         """
@@ -127,6 +146,7 @@ class EufySdkCamera(CoordinatorEntity["EufySdkDataUpdateCoordinator"], Camera):
             self._port,
             self._sn,
             self.coordinator.config_entry.runtime_data.snapshot_policy.get(self._sn),
+            snapshot_path=self._snapshot_path,
         )
         try:
             async with session.get(url, timeout=20) as resp:

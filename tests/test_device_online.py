@@ -48,7 +48,7 @@ def coordinator(*, device_status: object = True, with_status: bool = True) -> Mo
 
 
 class DeviceOfflineTests(unittest.TestCase):
-    """Only an explicit `deviceStatus: False` counts as offline."""
+    """With no liveness facts (older bridge) the legacy `deviceStatus` decides."""
 
     def test_false_is_offline(self):
         self.assertTrue(device_offline({"state": {"deviceStatus": False}}))
@@ -59,6 +59,88 @@ class DeviceOfflineTests(unittest.TestCase):
         self.assertFalse(device_offline({"state": {}}))
         self.assertFalse(device_offline({}))
         self.assertFalse(device_offline(None))
+
+
+class LivenessFactTests(unittest.TestCase):
+    """When the bridge forwards the SDK liveness facts, they beat `deviceStatus`."""
+
+    NOW = 1_700_000_000_000
+
+    def test_explicit_availability_is_authoritative(self):
+        # It overrides even a contradicting deviceStatus either way.
+        self.assertTrue(
+            device_offline(
+                {"availability": "unavailable", "state": {"deviceStatus": True}},
+                now_ms=self.NOW,
+            )
+        )
+        self.assertFalse(
+            device_offline(
+                {"availability": "available", "state": {"deviceStatus": False}},
+                now_ms=self.NOW,
+            )
+        )
+
+    def test_an_active_stream_means_reachable(self):
+        # #144: a standalone camera whose deviceStatus is false but is streaming now.
+        rec = {
+            "codec": "camera",
+            "power": "battery",
+            "streaming": True,
+            "state": {"deviceStatus": False},
+        }
+        self.assertFalse(device_offline(rec, now_ms=self.NOW))
+
+    def test_a_live_p2p_transport_means_reachable_despite_stale_last_seen(self):
+        # #121: a standalone mains camera on a live session sends only keepalives, so
+        # lastSeenMs is stale and deviceStatus is false, yet it is plainly reachable.
+        rec = {
+            "codec": "camera",
+            "power": "wired",
+            "p2pReachable": True,
+            "lastSeenMs": self.NOW - 3 * 60 * 60 * 1000,
+            "state": {"deviceStatus": False},
+        }
+        self.assertFalse(device_offline(rec, now_ms=self.NOW))
+
+    def test_a_recently_seen_camera_is_not_offline_despite_devicestatus(self):
+        # #144: param 1131 is false, but it reported a minute ago, so it is reachable.
+        rec = {
+            "codec": "camera",
+            "power": "battery",
+            "lastSeenMs": self.NOW - 60_000,
+            "state": {"deviceStatus": False},
+        }
+        self.assertFalse(device_offline(rec, now_ms=self.NOW))
+
+    def test_a_long_silent_battery_camera_is_offline(self):
+        # #133: powered off — no report for well over the battery-camera window.
+        rec = {
+            "codec": "camera",
+            "power": "battery",
+            "lastSeenMs": self.NOW - 7 * 60 * 60 * 1000,
+            "state": {"deviceStatus": True},
+        }
+        self.assertTrue(device_offline(rec, now_ms=self.NOW))
+
+    def test_a_mains_camera_uses_the_short_window(self):
+        rec = {
+            "codec": "camera",
+            "power": "wired",
+            "lastSeenMs": self.NOW - 45 * 60 * 1000,
+        }
+        self.assertTrue(device_offline(rec, now_ms=self.NOW))
+        rec_fresh = {
+            "codec": "camera",
+            "power": "wired",
+            "lastSeenMs": self.NOW - 60_000,
+        }
+        self.assertFalse(device_offline(rec_fresh, now_ms=self.NOW))
+
+    def test_a_sensor_is_never_offline_from_staleness(self):
+        # Silent by design — days without a report is healthy.
+        rec = {"codec": "sensor", "lastSeenMs": self.NOW - 3 * 24 * 60 * 60 * 1000}
+        self.assertFalse(device_offline(rec, now_ms=self.NOW))
 
 
 class AvailabilityTests(unittest.TestCase):

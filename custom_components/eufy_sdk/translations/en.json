@@ -32,6 +32,9 @@
       },
       "preset_goto": {
         "name": "Go to preset"
+      },
+      "open_lid": {
+        "name": "Open lid"
       }
     },
     "event": {

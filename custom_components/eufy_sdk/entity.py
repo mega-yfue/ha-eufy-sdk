@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import time
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.core import CALLBACK_TYPE, callback
@@ -227,15 +228,75 @@ class EufySdkDeviceEntity(CoordinatorEntity[EufySdkDataUpdateCoordinator]):
         )
 
 
-def device_offline(record: dict | None) -> bool:
-    """
-    Whether the cloud reports this device offline (`deviceStatus` is False).
+# Conservative per-device offline windows for the `lastSeenMs` fallback. `deviceStatus`
+# (the cloud's param 1131) is NOT a reliable online signal: it means different things on
+# different devices. So the bridge now forwards the SDK's honest liveness facts and we
+# judge staleness here. The window differs by device class (the SDK leaves the threshold
+# to the host): a mains device reports constantly, a battery one far less often, and a
+# battery sensor can be silent for days by design.
+_OFFLINE_WINDOW_STATION_MS = 30 * 60 * 1000
+_OFFLINE_WINDOW_MAINS_CAMERA_MS = 30 * 60 * 1000
+_OFFLINE_WINDOW_BATTERY_CAMERA_MS = 6 * 60 * 60 * 1000
 
-    Only devices that report `deviceStatus` (battery cameras, HomeBase-attached
-    devices) can be offline here. Where the key is missing the state is unknown,
-    and unknown is not offline, so those devices stay available as before.
+
+def _staleness_window_ms(record: dict) -> int | None:
     """
-    return (record or {}).get("state", {}).get("deviceStatus") is False
+    How long a device of this class may be silent before staleness implies offline.
+
+    `None` means this class is silent by design (sensors, locks, lights) and never
+    goes offline from `lastSeenMs` alone.
+    """
+    codec = record.get("codec")
+    if codec == "station":
+        return _OFFLINE_WINDOW_STATION_MS
+    if codec == "camera":
+        # The bridge tags a camera's supply; a battery camera reports far less
+        # often than a wired one.
+        if record.get("power") == "battery":
+            return _OFFLINE_WINDOW_BATTERY_CAMERA_MS
+        return _OFFLINE_WINDOW_MAINS_CAMERA_MS
+    return None
+
+
+def device_offline(record: dict | None, now_ms: float | None = None) -> bool:
+    """
+    Whether this device should be treated as offline.
+
+    Prefers the SDK's honest liveness facts (forwarded by the bridge) over the
+    ambiguous cloud `deviceStatus` param:
+
+    1. an explicit vendor availability observation, when seen, is authoritative;
+    2. an active live feed proves the device is reachable right now;
+    3. otherwise staleness — `lastSeenMs` older than this device class's window
+       (and classes that are silent by design never go offline this way);
+    4. only when none of those facts are present (an older bridge) does the legacy
+       `deviceStatus` flag still decide, so behaviour is unchanged until the bridge
+       forwards the facts.
+    """
+    rec = record or {}
+
+    availability = rec.get("availability")
+    if availability in ("unavailable", "available"):
+        return availability == "unavailable"
+
+    # A live feed, or a standalone device's live P2P transport, proves reachability
+    # right now — even while the device sends only keepalives and `lastSeenMs` stays
+    # put (ha-eufy-sdk #121).
+    if rec.get("streaming") or rec.get("p2pReachable"):
+        return False
+
+    last_seen = rec.get("lastSeenMs")
+    if isinstance(last_seen, (int, float)) and not isinstance(last_seen, bool):
+        window = _staleness_window_ms(rec)
+        if window is None:
+            return False
+        now = time.time() * 1000 if now_ms is None else now_ms
+        return (now - last_seen) > window
+
+    # No liveness facts at all: an older bridge — fall back to the legacy flag.
+    if availability is None:
+        return rec.get("state", {}).get("deviceStatus") is False
+    return False
 
 
 def label_for(prop: str) -> str:

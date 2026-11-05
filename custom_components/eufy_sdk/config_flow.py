@@ -215,14 +215,21 @@ class EufySdkFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             "host": f"{self._host}:{self._port}",
         }
 
-        # The add-on re-announces itself on every start. When this bridge already has
-        # an entry, refresh its addresses (reloading only if they changed) and drop the
-        # discovery, so it isn't offered again.
+        # The add-on re-announces its Supervisor gateway address on every start. When
+        # this bridge already has an entry, refresh its addresses and drop the discovery
+        # so it isn't offered again, but do NOT clobber an address the user pinned that
+        # still works: unpublishing the add-on's host ports makes the gateway address
+        # unreachable while the add-on hostname still reaches it (#142). Adopt the
+        # discovered address only when it already matches, or when the stored one is
+        # no longer reachable, so discovery still recovers an entry gone stale.
         existing = self._find_existing_entry(discovery_info.uuid)
         if existing is not None:
+            keep_stored = not self._discovery_matches_entry(
+                existing
+            ) and await self._entry_host_reachable(existing)
             return self.async_update_reload_and_abort(
                 existing,
-                data_updates=self._entry_data(),
+                data_updates=None if keep_stored else self._entry_data(),
                 reason="already_configured",
                 reload_even_if_entry_is_unchanged=False,
             )
@@ -329,6 +336,35 @@ class EufySdkFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             CONF_PORT: self._port,
             CONF_GO2RTC_RTSP_PORT: self._go2rtc_rtsp_port,
         }
+
+    def _discovery_matches_entry(self, entry: config_entries.ConfigEntry) -> bool:
+        """Whether the discovered address already equals the entry's stored one."""
+        try:
+            return (
+                str(entry.data.get(CONF_HOST)).strip() == self._host
+                and int(entry.data[CONF_PORT]) == self._port
+            )
+        except (KeyError, TypeError, ValueError):
+            return False
+
+    async def _entry_host_reachable(self, entry: config_entries.ConfigEntry) -> bool:
+        """Whether the bridge is reachable at the entry's currently stored host/port."""
+        try:
+            host = str(entry.data[CONF_HOST]).strip()
+            port = int(entry.data[CONF_PORT])
+        except (KeyError, TypeError, ValueError):
+            return False
+        if not host:
+            return False
+        client = EufySdkApiClient(host, port, async_get_clientsession(self.hass))
+        try:
+            await client.connect()
+        except EufySdkApiClientError:
+            return False
+        else:
+            return True
+        finally:
+            await client.close()
 
     def _find_existing_entry(
         self, discovery_uuid: str

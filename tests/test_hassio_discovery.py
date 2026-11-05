@@ -80,6 +80,39 @@ class HassioDiscoveryTests(unittest.IsolatedAsyncioTestCase):
         updates = flow.async_update_reload_and_abort.call_args.kwargs["data_updates"]
         self.assertEqual(updates[CONF_GO2RTC_RTSP_PORT], 8599)
 
+    async def test_a_reachable_pinned_address_is_kept_on_rediscovery(self):
+        # User pinned the add-on hostname (host ports unpublished); the add-on
+        # re-announces its unreachable gateway address. Keep the working one. #142.
+        entry = _entry(ADDON_UUID, host="local-eufy-sdk")
+        flow = self._flow(entry)
+        result, client = await self._discover(flow, _discovery(host="172.30.32.1"))
+        self.assertEqual(result, "aborted")
+        kwargs = flow.async_update_reload_and_abort.call_args.kwargs
+        self.assertIsNone(kwargs["data_updates"])  # stored address left intact
+        self.assertEqual(kwargs["reason"], "already_configured")
+        client.return_value.connect.assert_awaited_once()  # probed the stored address
+        client.return_value.close.assert_awaited_once()
+
+    async def test_a_stale_pinned_address_is_replaced_on_rediscovery(self):
+        # When the stored address no longer reaches the bridge, adopt the announced one.
+        entry = _entry(ADDON_UUID, host="local-eufy-sdk")
+        flow = self._flow(entry)
+        with (
+            patch.object(config_flow, "EufySdkApiClient") as client,
+            patch.object(config_flow, "async_get_clientsession"),
+        ):
+            client.return_value.connect = AsyncMock(
+                side_effect=config_flow.EufySdkApiClientError("bridge down")
+            )
+            client.return_value.close = AsyncMock()
+            result = await flow.async_step_hassio(_discovery(host="172.30.32.1"))
+        self.assertEqual(result, "aborted")
+        updates = flow.async_update_reload_and_abort.call_args.kwargs["data_updates"]
+        self.assertEqual(
+            updates[CONF_HOST], "172.30.32.1"
+        )  # adopted the discovered address
+        client.return_value.close.assert_awaited_once()
+
     async def test_a_new_bridge_is_offered_for_confirmation(self):
         flow = self._flow(_entry("other", host="10.0.0.9"))
         result, client = await self._discover(flow, _discovery())

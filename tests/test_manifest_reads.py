@@ -134,6 +134,56 @@ class ManifestReadTests(unittest.TestCase):
         )
         self.assertFalse(normalize_properties(metadata)[0]["writable"])
 
+    def test_read_only_consensus_reaches_sensor_without_relaxing_ambiguity(self):
+        for values, changes, expected in (
+            ((64, 64), {}, 64),
+            ((0, 0), {}, 0),
+            ((64, 63), {}, None),
+            ((64, None), {}, None),
+            ((64, "64"), {}, None),
+            ((64, 64), {"type": "string"}, None),
+            ((64, 64), {"kind": "scalar"}, None),
+            ((64, 64), {"unit": "V"}, None),
+            ((64, 64), {"writable": True}, None),
+            ((64, 64), {"writable": None}, None),
+            ((64, 64, 64), {}, 64),
+            ((64, 64, 63), {}, None),
+            ((64, None, 64), {}, None),
+        ):
+            with self.subTest(values=values, changes=changes):
+                metadata = deepcopy(METADATA)
+                device = deepcopy(DEVICE)
+                for index, value in enumerate(values):
+                    namespace, accessor = (
+                        ("battery", "level"),
+                        ("lock", "battery"),
+                        ("other", "level"),
+                    )[index]
+                    read = {
+                        "accessor": accessor,
+                        "property": "battery",
+                        "type": "number",
+                        "kind": "percent",
+                        "unit": "%",
+                        "writable": False,
+                    }
+                    if index == 1:
+                        read.update(changes)
+                    metadata["decodedProperties"]["details"].append(
+                        {"accessor": namespace, "reads": [read]}
+                    )
+                    device["decodedState"][namespace] = {accessor: value}
+                coordinator = Mock(data={SN: normalize_snapshot(device, metadata)})
+                spec = next(
+                    spec
+                    for spec in normalize_properties(metadata)
+                    if spec["name"] == "battery"
+                )
+                sensor = EufySdkPropertySensor(coordinator, SN, spec)
+                self.assertEqual(sensor.native_value, expected)
+                self.assertEqual(sensor._attr_unique_id, f"{SN}_battery")
+                self.assertFalse(spec["writable"])
+
     def test_legacy_and_write_only_metadata_are_preserved(self):
         legacy = {"state": {"battery": 75}}
         self.assertIs(normalize_snapshot(legacy, METADATA), legacy)
