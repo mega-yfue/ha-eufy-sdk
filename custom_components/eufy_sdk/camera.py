@@ -14,6 +14,7 @@ from .const import (
     ATTRIBUTION,
     CONF_GO2RTC_RTSP_PORT,
     CONF_HOST,
+    CONF_LIVE_OUTPUT_RESOLUTION,
     CONF_PORT,
     DEFAULT_GO2RTC_RTSP_PORT,
     DOMAIN,
@@ -44,7 +45,15 @@ async def async_setup_entry(
     port = entry.data[CONF_PORT]
     rtsp_port = int(entry.data.get(CONF_GO2RTC_RTSP_PORT, DEFAULT_GO2RTC_RTSP_PORT))
     async_add_entities(
-        EufySdkCamera(coordinator, sn, host, port, rtsp_port, view=view)
+        EufySdkCamera(
+            coordinator,
+            sn,
+            host,
+            port,
+            rtsp_port,
+            view=view,
+            output_resolution=entry.options.get(CONF_LIVE_OUTPUT_RESOLUTION),
+        )
         for sn, dev in coordinator.data.items()
         if dev.get("stream")
         for view in dev.get("views", [None])
@@ -68,6 +77,7 @@ class EufySdkCamera(CoordinatorEntity["EufySdkDataUpdateCoordinator"], Camera):
         rtsp_port: int,
         *,
         view: dict[str, Any] | None = None,
+        output_resolution: str | None = None,
     ) -> None:
         """Bind to a device serial + the bridge address."""
         CoordinatorEntity.__init__(self, coordinator)
@@ -77,8 +87,20 @@ class EufySdkCamera(CoordinatorEntity["EufySdkDataUpdateCoordinator"], Camera):
         self._port = port
         self._rtsp_port = rtsp_port
         self._view = view["view"] if view else 0
-        self._stream_id = view["id"] if view else sn
-        self._snapshot_path = view["snapshot"] if view else None
+        source = (
+            next(
+                (
+                    output
+                    for output in view.get("outputs", [])
+                    if output.get("outputResolution") == output_resolution
+                ),
+                view,
+            )
+            if view
+            else None
+        )
+        self._stream_id = source["id"] if source else sn
+        self._snapshot_path = source["snapshot"] if source else None
         self._attr_unique_id = (
             f"{sn}_camera" if self._view == 0 else f"{sn}_camera_view_{self._view}"
         )

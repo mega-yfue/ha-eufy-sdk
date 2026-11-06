@@ -25,6 +25,9 @@ DEFAULT_PORT = 3000
 CONF_GO2RTC_RTSP_PORT = "go2rtc_rtsp_port"
 DEFAULT_GO2RTC_RTSP_PORT = 8554
 
+CONF_LIVE_OUTPUT_RESOLUTION = "live_output_resolution"
+DEFAULT_LIVE_OUTPUT_RESOLUTION = "default"
+
 # Options: how often the bridge polls the cloud for device state (minutes).
 # Drives both the bridge's cloud poll (config.set) and how often HA reads it.
 CONF_POLL_INTERVAL = "poll_interval_minutes"
