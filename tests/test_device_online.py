@@ -137,6 +137,86 @@ class LivenessFactTests(unittest.TestCase):
         }
         self.assertFalse(device_offline(rec_fresh, now_ms=self.NOW))
 
+    def test_a_quiet_homebase_attached_camera_is_not_offline(self):
+        # #167/#168: a battery camera on a HomeBase with no event since the morning.
+        rec = {
+            "sn": "T8170P0000000001",
+            "stationSn": "T8030P0000000001",
+            "codec": "camera",
+            "power": "battery",
+            "lastSeenMs": self.NOW - 14 * 60 * 60 * 1000,
+            "state": {"deviceStatus": True},
+        }
+        self.assertFalse(device_offline(rec, now_ms=self.NOW))
+
+    def test_an_idle_homebase_is_not_offline(self):
+        # An idle HomeBase keeps arming and streaming while lastSeenMs is hours old.
+        rec = {
+            "sn": "T8030P0000000001",
+            "stationSn": "T8030P0000000001",
+            "codec": "station",
+            "lastSeenMs": self.NOW - 13 * 60 * 60 * 1000,
+            "state": {},
+        }
+        self.assertFalse(device_offline(rec, now_ms=self.NOW))
+
+    def test_a_quiet_wired_camera_on_a_homebase_is_not_offline(self):
+        # A wired camera on a HomeBase reports no more often than a battery one.
+        rec = {
+            "sn": "T8E00P0000000001",
+            "stationSn": "T8N00P0000000001",
+            "codec": "camera",
+            "power": "wired",
+            "lastSeenMs": self.NOW - 9 * 60 * 60 * 1000,
+            "state": {"deviceStatus": True},
+        }
+        self.assertFalse(device_offline(rec, now_ms=self.NOW))
+
+    def test_a_homebase_silent_past_the_backstop_is_offline(self):
+        # A HomeBase that is really gone still reads offline in the end.
+        rec = {
+            "sn": "T8030P0000000001",
+            "stationSn": "T8030P0000000001",
+            "codec": "station",
+            "lastSeenMs": self.NOW - 8 * 24 * 60 * 60 * 1000,
+            "state": {},
+        }
+        self.assertTrue(device_offline(rec, now_ms=self.NOW))
+
+    def test_an_attached_camera_silent_past_the_backstop_is_offline(self):
+        rec = {
+            "sn": "T8170P0000000001",
+            "stationSn": "T8030P0000000001",
+            "codec": "camera",
+            "power": "battery",
+            "lastSeenMs": self.NOW - 8 * 24 * 60 * 60 * 1000,
+            "state": {"deviceStatus": True},
+        }
+        self.assertTrue(device_offline(rec, now_ms=self.NOW))
+
+    def test_a_standalone_battery_camera_still_goes_offline_when_silent(self):
+        # #133 stays fixed: a standalone camera is its own station.
+        rec = {
+            "sn": "T8151P0000000001",
+            "stationSn": "T8151P0000000001",
+            "codec": "camera",
+            "power": "battery",
+            "lastSeenMs": self.NOW - 7 * 60 * 60 * 1000,
+            "state": {"deviceStatus": True},
+        }
+        self.assertTrue(device_offline(rec, now_ms=self.NOW))
+
+    def test_an_attached_camera_still_follows_explicit_availability(self):
+        rec = {
+            "sn": "T8170P0000000001",
+            "stationSn": "T8030P0000000001",
+            "codec": "camera",
+            "power": "battery",
+            "availability": "unavailable",
+            "lastSeenMs": self.NOW - 60_000,
+        }
+        self.assertTrue(device_offline(rec, now_ms=self.NOW))
+
     def test_a_sensor_is_never_offline_from_staleness(self):
         # Silent by design — days without a report is healthy.
         rec = {"codec": "sensor", "lastSeenMs": self.NOW - 3 * 24 * 60 * 60 * 1000}

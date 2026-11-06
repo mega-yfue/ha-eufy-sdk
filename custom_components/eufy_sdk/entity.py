@@ -233,10 +233,18 @@ class EufySdkDeviceEntity(CoordinatorEntity[EufySdkDataUpdateCoordinator]):
 # different devices. So the bridge now forwards the SDK's honest liveness facts and we
 # judge staleness here. The window differs by device class (the SDK leaves the threshold
 # to the host): a mains device reports constantly, a battery one far less often, and a
-# battery sensor can be silent for days by design.
-_OFFLINE_WINDOW_STATION_MS = 30 * 60 * 1000
+# battery sensor can be silent for days by design. A HomeBase and whatever hangs off
+# one get a long backstop instead: a quiet one keeps working with an old `lastSeenMs`,
+# while a HomeBase that is really down still reads offline in the end.
 _OFFLINE_WINDOW_MAINS_CAMERA_MS = 30 * 60 * 1000
 _OFFLINE_WINDOW_BATTERY_CAMERA_MS = 6 * 60 * 60 * 1000
+_OFFLINE_WINDOW_HOMEBASE_MS = 7 * 24 * 60 * 60 * 1000
+
+
+def _homebase_attached(record: dict) -> bool:
+    """Whether the bridge names a station this device hangs off other than itself."""
+    station = record.get("stationSn")
+    return isinstance(station, str) and bool(station) and station != record.get("sn")
 
 
 def _staleness_window_ms(record: dict) -> int | None:
@@ -245,10 +253,20 @@ def _staleness_window_ms(record: dict) -> int | None:
 
     `None` means this class is silent by design (sensors, locks, lights) and never
     goes offline from `lastSeenMs` alone.
+
+    A HomeBase and every device attached to one get a long backstop instead of
+    the camera windows (#167, #168). An attached camera's `lastSeenMs` moves only
+    when it reports an event, so a quiet outdoor camera passes any short window
+    every night, and an idle HomeBase's can be hours old while it arms and
+    streams. While the station's P2P session is live the bridge reports
+    `p2pReachable` for both, which decides first; the backstop only catches a
+    HomeBase that has really gone, and its devices with it. The bridge names a
+    device's station in `stationSn` (its own serial when standalone); without it
+    a camera is judged as before.
     """
     codec = record.get("codec")
-    if codec == "station":
-        return _OFFLINE_WINDOW_STATION_MS
+    if codec == "station" or _homebase_attached(record):
+        return _OFFLINE_WINDOW_HOMEBASE_MS
     if codec == "camera":
         # The bridge tags a camera's supply; a battery camera reports far less
         # often than a wired one.
