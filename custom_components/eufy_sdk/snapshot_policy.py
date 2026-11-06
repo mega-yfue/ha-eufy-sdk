@@ -6,12 +6,16 @@ SNAPSHOT_POLICY_DEFAULT = "default"
 SNAPSHOT_POLICY_AUTO = "auto"
 SNAPSHOT_POLICY_STORED = "stored"
 SNAPSHOT_POLICY_LIVE = "live"
+# The last picture someone watched live (bridge /snapshot?mode=screen) - never
+# the last event, never a wake; falls back to the newest picture if never watched.
+SNAPSHOT_POLICY_SCREEN = "screen"
 
 SNAPSHOT_POLICY_OPTIONS = (
     SNAPSHOT_POLICY_DEFAULT,
     SNAPSHOT_POLICY_AUTO,
     SNAPSHOT_POLICY_STORED,
     SNAPSHOT_POLICY_LIVE,
+    SNAPSHOT_POLICY_SCREEN,
 )
 
 

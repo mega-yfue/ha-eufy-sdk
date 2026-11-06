@@ -91,5 +91,9 @@ THUMBNAIL_EVENTS: frozenset[str] = frozenset(
 # have no push thumbnail, so this is what actually advances "Last event" for them.
 EVENT_IMAGE_REFRESH = "eventImageUpdated"
 
+# A bridge-side nudge after it kept a new "last screen" (the last picture someone
+# watched live, GET /last-screen/<sn>) — refreshes the Last screen image entity.
+LAST_SCREEN_REFRESH = "lastScreenUpdated"
+
 # Push carries no "cleared" signal, so a push binary_sensor auto-offs after this delay.
 PUSH_AUTO_OFF_SECONDS = 30

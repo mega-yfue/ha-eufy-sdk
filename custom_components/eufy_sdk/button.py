@@ -53,6 +53,14 @@ async def async_setup_entry(
         for sn, dev in coordinator.data.items()
         if dev.get("stream")
     )
+    # "Take Screenshot" per camera (same set): the only way besides live viewing to
+    # update the "Last screen" image — on demand, never on a timer (battery). Gated on
+    # `lastScreen`: an older bridge has no `screen.take`, so the button could only fail.
+    entities.extend(
+        EufyTakeScreenshotButton(coordinator, sn)
+        for sn, dev in coordinator.data.items()
+        if dev.get("lastScreen")
+    )
     # The d-pad and the preset actions, gated on the `ptz` capability the bridge
     # reports: a fixed camera has no `ptz` surface, so the bridge would refuse every
     # verb and the buttons would sit there as dead controls.
@@ -132,6 +140,23 @@ class EufyRefreshEventButton(EufySdkDeviceEntity, ButtonEntity):
         """Ask the bridge to re-pull the newest event cover (nudges the Image)."""
         client = self.client
         await client.refresh_event_image(self._sn)
+
+
+class EufyTakeScreenshotButton(EufySdkDeviceEntity, ButtonEntity):
+    """Take a fresh still from the camera now and keep it as its 'Last screen'."""
+
+    _attr_icon = "mdi:camera"
+    _attr_translation_key = "take_screenshot"
+
+    def __init__(self, coordinator: EufySdkDataUpdateCoordinator, sn: str) -> None:
+        """Bind to a camera/doorbell serial."""
+        super().__init__(coordinator, sn)
+        self._attr_unique_id = f"{sn}_take_screenshot"
+
+    async def async_press(self) -> None:
+        """Ask the bridge for a fresh still (wakes a battery camera)."""
+        client = self.client
+        await client.take_screenshot(self._sn)
 
 
 class EufySdkPtzButton(EufySdkDeviceEntity, ButtonEntity):
