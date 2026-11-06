@@ -154,32 +154,64 @@ class LivenessFactTests(unittest.TestCase):
         self.assertFalse(device_offline(rec, now_ms=self.NOW))
 
 
-class SilentByDesignTests(unittest.TestCase):
-    """A HomeBase and its children keep working while `lastSeenMs` stays put."""
+class QuietDeviceTests(unittest.TestCase):
+    """A HomeBase and its cameras stay online while quiet, but not forever."""
 
     NOW = 1_800_000_000_000
+    QUIET = NOW - 3 * 24 * 60 * 60 * 1000
     DAYS_AGO = NOW - 19 * 24 * 60 * 60 * 1000
 
-    def test_an_idle_homebase_is_not_offline(self):
-        record = {"sn": "T8010", "codec": "station", "lastSeenMs": self.DAYS_AGO}
-        self.assertFalse(device_offline(record, self.NOW))
-
-    def test_a_homebase_attached_battery_camera_is_not_offline(self):
-        record = {
+    def attached_camera(self, power: str, last_seen: int, **facts: object) -> dict:
+        return {
             "sn": "T8140",
             "stationSn": "T8010",
             "codec": "camera",
-            "power": "battery",
+            "power": power,
+            "lastSeenMs": last_seen,
+            **facts,
+        }
+
+    def test_an_idle_homebase_is_not_offline(self):
+        record = {"sn": "T8010", "codec": "station", "lastSeenMs": self.QUIET}
+        self.assertFalse(device_offline(record, self.NOW))
+
+    def test_a_homebase_that_is_down_goes_stale(self):
+        record = {"sn": "T8010", "codec": "station", "lastSeenMs": self.DAYS_AGO}
+        self.assertTrue(device_offline(record, self.NOW))
+
+    def test_a_live_homebase_is_not_offline_however_old_last_seen_is(self):
+        record = {
+            "sn": "T8010",
+            "codec": "station",
+            "p2pReachable": True,
             "lastSeenMs": self.DAYS_AGO,
         }
         self.assertFalse(device_offline(record, self.NOW))
 
-    def test_a_homebase_attached_wired_camera_is_not_offline(self):
+    def test_a_quiet_attached_camera_is_not_offline(self):
+        for power in ("battery", "wired"):
+            with self.subTest(power=power):
+                record = self.attached_camera(power, self.QUIET)
+                self.assertFalse(device_offline(record, self.NOW))
+
+    def test_an_attached_camera_on_a_live_homebase_is_not_offline(self):
+        # Bridge #180: the station's live session counts as the camera's transport.
+        for power in ("battery", "wired"):
+            with self.subTest(power=power):
+                record = self.attached_camera(power, self.DAYS_AGO, p2pReachable=True)
+                self.assertFalse(device_offline(record, self.NOW))
+
+    def test_an_attached_camera_on_a_homebase_that_is_down_goes_stale(self):
+        for power in ("battery", "wired"):
+            with self.subTest(power=power):
+                record = self.attached_camera(power, self.DAYS_AGO)
+                self.assertTrue(device_offline(record, self.NOW))
+
+    def test_an_attached_sensor_is_never_offline_from_staleness(self):
         record = {
-            "sn": "T8214",
+            "sn": "T8900",
             "stationSn": "T8010",
-            "codec": "camera",
-            "power": "wired",
+            "codec": "sensor",
             "lastSeenMs": self.DAYS_AGO,
         }
         self.assertFalse(device_offline(record, self.NOW))

@@ -233,12 +233,15 @@ class EufySdkDeviceEntity(CoordinatorEntity[EufySdkDataUpdateCoordinator]):
 # different devices. So the bridge now forwards the SDK's honest liveness facts and we
 # judge staleness here. The window differs by device class (the SDK leaves the threshold
 # to the host): a mains device reports constantly, a battery one far less often, and a
-# battery sensor can be silent for days by design. A standalone battery camera sleeps
-# and only reports on an event, so a quiet spot leaves `lastSeenMs` untouched for hours
-# or days, and opening the live view is what refreshes it: an unavailable camera cannot
-# be opened, so a short window locks a working camera out until it next sees motion.
+# battery sensor can be silent for days by design. A battery camera sleeps and only
+# reports on an event, so a quiet spot leaves `lastSeenMs` untouched for hours or days,
+# and opening the live view is what refreshes it: an unavailable camera cannot be
+# opened, so a short window locks a working camera out until it next sees motion. An
+# idle HomeBase and the cameras on it are just as quiet, and an unavailable HomeBase
+# makes Home Assistant skip its service calls without an error. They all get a long
+# backstop, so a device that is really gone still reads offline in the end.
 _OFFLINE_WINDOW_MAINS_CAMERA_MS = 30 * 60 * 1000
-_OFFLINE_WINDOW_BATTERY_CAMERA_MS = 7 * 24 * 60 * 60 * 1000
+_OFFLINE_WINDOW_QUIET_MS = 7 * 24 * 60 * 60 * 1000
 
 
 def _attached_to_station(record: dict) -> bool:
@@ -251,21 +254,20 @@ def _staleness_window_ms(record: dict) -> int | None:
     """
     How long a device of this class may be silent before staleness implies offline.
 
-    `None` means this class is silent by design and never goes offline from
-    `lastSeenMs` alone: sensors, locks, lights, a HomeBase, and whatever hangs off a
-    HomeBase. An idle HomeBase and its children keep working while `lastSeenMs` stays
-    put for hours or weeks, and reading one as offline makes Home Assistant skip its
-    service calls without an error. The bridge's `availability` and `p2pReachable`
-    still decide for them.
+    `None` means this class is silent by design (sensors, locks, lights) and never
+    goes offline from `lastSeenMs` alone, also on a HomeBase. A HomeBase and the
+    cameras on it are covered by `p2pReachable` while the station's session is live
+    (bridge #180), which decides first; their window only catches a HomeBase that is
+    really down.
     """
     codec = record.get("codec")
-    if codec == "station" or _attached_to_station(record):
-        return None
+    if codec == "station":
+        return _OFFLINE_WINDOW_QUIET_MS
     if codec == "camera":
         # The bridge tags a camera's supply; a battery camera reports far less
         # often than a wired one.
-        if record.get("power") == "battery":
-            return _OFFLINE_WINDOW_BATTERY_CAMERA_MS
+        if record.get("power") == "battery" or _attached_to_station(record):
+            return _OFFLINE_WINDOW_QUIET_MS
         return _OFFLINE_WINDOW_MAINS_CAMERA_MS
     return None
 
