@@ -233,9 +233,12 @@ class EufySdkDeviceEntity(CoordinatorEntity[EufySdkDataUpdateCoordinator]):
 # different devices. So the bridge now forwards the SDK's honest liveness facts and we
 # judge staleness here. The window differs by device class (the SDK leaves the threshold
 # to the host): a mains device reports constantly, a battery one far less often, and a
-# battery sensor can be silent for days by design.
+# battery sensor can be silent for days by design. A standalone battery camera sleeps
+# and only reports on an event, so a quiet spot leaves `lastSeenMs` untouched for hours
+# or days, and opening the live view is what refreshes it: an unavailable camera cannot
+# be opened, so a short window locks a working camera out until it next sees motion.
 _OFFLINE_WINDOW_MAINS_CAMERA_MS = 30 * 60 * 1000
-_OFFLINE_WINDOW_BATTERY_CAMERA_MS = 6 * 60 * 60 * 1000
+_OFFLINE_WINDOW_BATTERY_CAMERA_MS = 7 * 24 * 60 * 60 * 1000
 
 
 def _attached_to_station(record: dict) -> bool:

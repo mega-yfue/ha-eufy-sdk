@@ -118,10 +118,21 @@ class LivenessFactTests(unittest.TestCase):
         rec = {
             "codec": "camera",
             "power": "battery",
-            "lastSeenMs": self.NOW - 7 * 60 * 60 * 1000,
+            "lastSeenMs": self.NOW - 8 * 24 * 60 * 60 * 1000,
             "state": {"deviceStatus": True},
         }
         self.assertTrue(device_offline(rec, now_ms=self.NOW))
+
+    def test_a_sleeping_battery_camera_is_not_offline(self):
+        # A camera in a quiet spot sees no motion, so it does not report for hours or
+        # days, and an unavailable camera cannot be opened to refresh lastSeenMs.
+        rec = {
+            "codec": "camera",
+            "power": "battery",
+            "lastSeenMs": self.NOW - 6 * 24 * 60 * 60 * 1000,
+            "state": {"deviceStatus": True},
+        }
+        self.assertFalse(device_offline(rec, now_ms=self.NOW))
 
     def test_a_mains_camera_uses_the_short_window(self):
         rec = {
