@@ -117,8 +117,20 @@ class EufySdkCamera(CoordinatorEntity["EufySdkDataUpdateCoordinator"], Camera):
         )
 
     async def stream_source(self) -> str:
-        """Return the go2rtc RTSP URL — HA's stream component + go2rtc do the work."""
-        return f"rtsp://{self._host}:{self._rtsp_port}/{self._stream_id}"
+        """
+        Return the go2rtc source for this camera.
+
+        Wired cameras keep a plain RTSP URL, which Home Assistant's stream worker
+        can open. A battery camera skips that worker, so live view is only Home
+        Assistant's go2rtc reading this URL. The bridge does not answer DESCRIBE
+        until the camera wakes and sends video, often 10-30 s, and go2rtc's RTSP
+        client gives DESCRIBE a hard-coded 5 s. An ffmpeg source waits longer to
+        start and applies a 40 s RTSP timeout (ha-eufy-sdk#153).
+        """
+        url = f"rtsp://{self._host}:{self._rtsp_port}/{self._stream_id}"
+        if on_battery_power(self.coordinator.data.get(self._sn)):
+            return f"ffmpeg:{url}#video=copy#timeout=40"
+        return url
 
     async def async_create_stream(self) -> Stream | None:
         """

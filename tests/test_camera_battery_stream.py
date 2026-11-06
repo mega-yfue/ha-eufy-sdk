@@ -13,7 +13,7 @@ LEGACY_BATTERY = "T8170P0000000001"
 LEGACY_MAINS = "T8425P0000000001"
 
 
-def _camera(sn: str) -> EufySdkCamera:
+def _camera(sn: str, view: dict | None = None) -> EufySdkCamera:
     coordinator = Mock()
     coordinator.data = {
         BATTERY: {
@@ -37,7 +37,7 @@ def _camera(sn: str) -> EufySdkCamera:
         },
         LEGACY_MAINS: {"capabilities": ["camera", "battery"], "stream": "/s"},
     }
-    return EufySdkCamera(coordinator, sn, "10.0.0.5", 3000, 8554)
+    return EufySdkCamera(coordinator, sn, "10.0.0.5", 3000, 8554, view=view)
 
 
 class BatteryCameraStreamTests(unittest.IsolatedAsyncioTestCase):
@@ -61,11 +61,40 @@ class BatteryCameraStreamTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(await self._starts_worker(LEGACY_BATTERY))
         self.assertTrue(await self._starts_worker(LEGACY_MAINS))
 
-    async def test_every_camera_keeps_the_rtsp_restream(self):
-        for sn in (BATTERY, MAINS):
+    async def test_a_battery_camera_wraps_the_rtsp_url_for_go2rtc(self):
+        # ha-eufy-sdk#153: go2rtc's RTSP client times out DESCRIBE at 5 s, before
+        # a sleeping camera wakes. The ffmpeg source waits and sets its own timeout.
+        self.assertEqual(
+            await _camera(BATTERY).stream_source(),
+            f"ffmpeg:rtsp://10.0.0.5:8554/{BATTERY}#video=copy#timeout=40",
+        )
+        self.assertEqual(
+            await _camera(LEGACY_BATTERY).stream_source(),
+            f"ffmpeg:rtsp://10.0.0.5:8554/{LEGACY_BATTERY}#video=copy#timeout=40",
+        )
+
+    async def test_a_wired_camera_keeps_the_plain_rtsp_url(self):
+        for sn in (MAINS, LEGACY_MAINS):
             self.assertEqual(
                 await _camera(sn).stream_source(), f"rtsp://10.0.0.5:8554/{sn}"
             )
+
+    async def test_an_optical_view_uses_its_own_stream_id(self):
+        battery_view = f"{BATTERY}_view_1"
+        self.assertEqual(
+            await _camera(
+                BATTERY,
+                view={"view": 1, "id": battery_view, "snapshot": "/snapshot"},
+            ).stream_source(),
+            f"ffmpeg:rtsp://10.0.0.5:8554/{battery_view}#video=copy#timeout=40",
+        )
+        wired_view = f"{MAINS}_view_1"
+        self.assertEqual(
+            await _camera(
+                MAINS, view={"view": 1, "id": wired_view, "snapshot": "/snapshot"}
+            ).stream_source(),
+            f"rtsp://10.0.0.5:8554/{wired_view}",
+        )
 
 
 if __name__ == "__main__":
