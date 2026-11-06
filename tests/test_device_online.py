@@ -143,6 +143,68 @@ class LivenessFactTests(unittest.TestCase):
         self.assertFalse(device_offline(rec, now_ms=self.NOW))
 
 
+class SilentByDesignTests(unittest.TestCase):
+    """A HomeBase and its children keep working while `lastSeenMs` stays put."""
+
+    NOW = 1_800_000_000_000
+    DAYS_AGO = NOW - 19 * 24 * 60 * 60 * 1000
+
+    def test_an_idle_homebase_is_not_offline(self):
+        record = {"sn": "T8010", "codec": "station", "lastSeenMs": self.DAYS_AGO}
+        self.assertFalse(device_offline(record, self.NOW))
+
+    def test_a_homebase_attached_battery_camera_is_not_offline(self):
+        record = {
+            "sn": "T8140",
+            "stationSn": "T8010",
+            "codec": "camera",
+            "power": "battery",
+            "lastSeenMs": self.DAYS_AGO,
+        }
+        self.assertFalse(device_offline(record, self.NOW))
+
+    def test_a_homebase_attached_wired_camera_is_not_offline(self):
+        record = {
+            "sn": "T8214",
+            "stationSn": "T8010",
+            "codec": "camera",
+            "power": "wired",
+            "lastSeenMs": self.DAYS_AGO,
+        }
+        self.assertFalse(device_offline(record, self.NOW))
+
+    def test_explicit_availability_still_wins_for_a_homebase(self):
+        record = {
+            "sn": "T8010",
+            "codec": "station",
+            "availability": "unavailable",
+            "lastSeenMs": self.NOW,
+        }
+        self.assertTrue(device_offline(record, self.NOW))
+
+    def test_a_standalone_camera_naming_itself_still_goes_stale(self):
+        # #133: powered off, with a cloud flag that still says online.
+        record = {
+            "sn": "T8151",
+            "stationSn": "T8151",
+            "codec": "camera",
+            "power": "battery",
+            "lastSeenMs": self.DAYS_AGO,
+            "state": {"deviceStatus": True},
+        }
+        self.assertTrue(device_offline(record, self.NOW))
+
+    def test_a_dead_mains_camera_still_goes_stale(self):
+        record = {
+            "sn": "T8400",
+            "stationSn": "T8400",
+            "codec": "camera",
+            "power": "wired",
+            "lastSeenMs": self.DAYS_AGO,
+        }
+        self.assertTrue(device_offline(record, self.NOW))
+
+
 class AvailabilityTests(unittest.TestCase):
     """A device's entities go unavailable while the cloud reports it offline."""
 
