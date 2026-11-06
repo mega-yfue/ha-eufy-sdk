@@ -54,11 +54,12 @@ async def async_setup_entry(
         if dev.get("stream")
     )
     # "Take Screenshot" per camera (same set): the only way besides live viewing to
-    # update the "Last screen" image — on demand, never on a timer (battery).
+    # update the "Last screen" image — on demand, never on a timer (battery). Gated on
+    # `lastScreen`: an older bridge has no `screen.take`, so the button could only fail.
     entities.extend(
         EufyTakeScreenshotButton(coordinator, sn)
         for sn, dev in coordinator.data.items()
-        if dev.get("stream")
+        if dev.get("lastScreen")
     )
     # The d-pad and the preset actions, gated on the `ptz` capability the bridge
     # reports: a fixed camera has no `ptz` surface, so the bridge would refuse every

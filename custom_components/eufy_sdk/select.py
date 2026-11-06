@@ -25,6 +25,7 @@ from .entity import (
 from .snapshot_policy import (
     SNAPSHOT_POLICY_DEFAULT,
     SNAPSHOT_POLICY_OPTIONS,
+    SNAPSHOT_POLICY_SCREEN,
     normalize_snapshot_policy,
 )
 
@@ -140,13 +141,21 @@ class EufySdkSnapshotPolicySelect(EufySdkDeviceEntity, SelectEntity, RestoreEnti
         super().__init__(coordinator, sn)
         self._attr_unique_id = f"{sn}_snapshot_policy"
         self._attr_current_option = SNAPSHOT_POLICY_DEFAULT
+        # An older bridge answers mode=screen with 400, so it is not offered there.
+        if not coordinator.data[sn].get("lastScreen"):
+            self._attr_options = [
+                option
+                for option in SNAPSHOT_POLICY_OPTIONS
+                if option != SNAPSHOT_POLICY_SCREEN
+            ]
 
     async def async_added_to_hass(self) -> None:
         """Restore the local choice without querying or writing the camera."""
         await super().async_added_to_hass()
         last = await self.async_get_last_state()
-        self._attr_current_option = normalize_snapshot_policy(
-            last.state if last else None
+        restored = normalize_snapshot_policy(last.state if last else None)
+        self._attr_current_option = (
+            restored if restored in self.options else SNAPSHOT_POLICY_DEFAULT
         )
         self._publish()
 

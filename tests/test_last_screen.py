@@ -6,12 +6,15 @@ from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 
 from custom_components.eufy_sdk.button import EufyTakeScreenshotButton
+from custom_components.eufy_sdk.button import async_setup_entry as button_setup
 from custom_components.eufy_sdk.const import EVENT_TYPE
 from custom_components.eufy_sdk.image import EufySdkLastScreenImage
+from custom_components.eufy_sdk.image import async_setup_entry as image_setup
 from custom_components.eufy_sdk.pushmap import (
     EVENT_IMAGE_REFRESH,
     LAST_SCREEN_REFRESH,
 )
+from custom_components.eufy_sdk.select import EufySdkSnapshotPolicySelect
 from custom_components.eufy_sdk.snapshot_policy import (
     SNAPSHOT_POLICY_SCREEN,
     bridge_mode_for_policy,
@@ -61,6 +64,42 @@ class LastScreenTests(unittest.IsolatedAsyncioTestCase):
         image._handle_event(_event("CAM1", LAST_SCREEN_REFRESH))
         hass.async_create_task.assert_called_once()
         hass.async_create_task.call_args.args[0].close()
+
+
+NEW = {"stream": "/stream/CAM1", "lastScreen": "/last-screen/CAM1"}
+OLD = {"stream": "/stream/CAM1"}
+
+
+class LastScreenGateTests(unittest.IsolatedAsyncioTestCase):
+    """Nothing last-screen is offered on a bridge that does not advertise it."""
+
+    async def _entities(self, setup: Any, device: dict[str, Any]) -> list[Any]:
+        coordinator = _coordinator({"CAM1": device})
+        entry = SimpleNamespace(
+            runtime_data=coordinator.config_entry.runtime_data,
+            data={"host": "bridge", "port": 3000},
+        )
+        added: list[Any] = []
+        await setup(Mock(), entry, added.extend)
+        return added
+
+    async def test_button_needs_the_bridge_capability(self) -> None:
+        new = await self._entities(button_setup, NEW)
+        old = await self._entities(button_setup, OLD)
+        self.assertTrue(any(isinstance(e, EufyTakeScreenshotButton) for e in new))
+        self.assertFalse(any(isinstance(e, EufyTakeScreenshotButton) for e in old))
+
+    async def test_image_needs_the_bridge_capability(self) -> None:
+        new = await self._entities(image_setup, NEW)
+        old = await self._entities(image_setup, OLD)
+        self.assertTrue(any(isinstance(e, EufySdkLastScreenImage) for e in new))
+        self.assertFalse(any(isinstance(e, EufySdkLastScreenImage) for e in old))
+
+    def test_screen_policy_needs_the_bridge_capability(self) -> None:
+        new = EufySdkSnapshotPolicySelect(_coordinator({"CAM1": NEW}), "CAM1")
+        old = EufySdkSnapshotPolicySelect(_coordinator({"CAM1": OLD}), "CAM1")
+        self.assertIn("screen", new.options)
+        self.assertNotIn("screen", old.options)
 
 
 def _event(sn: str, event: str) -> SimpleNamespace:

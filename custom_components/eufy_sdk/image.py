@@ -39,7 +39,11 @@ async def async_setup_entry(
     cameras = [sn for sn, dev in coordinator.data.items() if dev.get("stream")]
     async_add_entities(
         [EufySdkEventImage(hass, coordinator, sn, host, port) for sn in cameras]
-        + [EufySdkLastScreenImage(hass, coordinator, sn, host, port) for sn in cameras]
+        + [
+            EufySdkLastScreenImage(hass, coordinator, sn, host, port)
+            for sn in cameras
+            if coordinator.data[sn].get("lastScreen")
+        ]
     )
 
 
