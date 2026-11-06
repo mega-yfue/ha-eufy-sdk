@@ -170,3 +170,15 @@ properties and write-only settings retain their existing behavior. Older bridges
 without `decodedState` continue through the legacy raw-state path. This does not
 add a decoded event stream, increase the configured polling frequency, or guarantee
 that a snapshot is a fresh physical device confirmation.
+
+## Live output resolution
+
+In the integration options, **Live video output resolution** selects **Default output**
+or **Full HD (1080p)**. Default preserves the current behavior. Full HD uses only a
+matching alternate source explicitly advertised by the bridge; cameras without that
+source retain their default output. The options flow reloads the integration.
+
+This selection changes neither camera entity IDs nor the eufy app/recording-quality
+settings. It requires bridge and SDK versions that advertise Full-HD output support.
+Stored preview images may retain their original dimensions; fresh live output uses
+the selected source.

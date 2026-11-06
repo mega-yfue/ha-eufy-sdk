@@ -22,7 +22,9 @@ VIEWS = [
 ]
 
 
-async def setup_camera(**changes: object) -> tuple[list, SimpleNamespace]:
+async def setup_camera(
+    *, options: dict | None = None, **changes: object
+) -> tuple[list, SimpleNamespace]:
     """Pass a sanitized bridge record through the production platform caller."""
     device = {
         "sn": SN,
@@ -48,6 +50,7 @@ async def setup_camera(**changes: object) -> tuple[list, SimpleNamespace]:
     coordinator.last_update_success = True
     runtime = SimpleNamespace(coordinator=coordinator, snapshot_policy={})
     entry = SimpleNamespace(
+        options=options or {},
         data={"host": "bridge", "port": 3000, "go2rtc_rtsp_port": 8554},
         runtime_data=runtime,
     )
@@ -59,6 +62,40 @@ async def setup_camera(**changes: object) -> tuple[list, SimpleNamespace]:
 
 class CameraViewTests(unittest.IsolatedAsyncioTestCase):
     """Exercise entity creation and public media methods on advertised views."""
+
+    async def test_full_hd_uses_advertised_sources_and_keeps_entity_identity(
+        self,
+    ) -> None:
+        views = deepcopy(VIEWS)
+        for view in views:
+            view["outputs"] = [
+                {
+                    "outputResolution": "1080p",
+                    "id": view["id"] + "_output_1080p",
+                    "snapshot": view["snapshot"]
+                    + ("&" if "?" in view["snapshot"] else "?")
+                    + "outputResolution=1080p",
+                }
+            ]
+        cameras, _ = await setup_camera(
+            options={"live_output_resolution": "1080p"}, views=views
+        )
+        self.assertEqual(
+            [await cam.stream_source() for cam in cameras],
+            [
+                f"rtsp://bridge:8554/{SN}_output_1080p",
+                f"rtsp://bridge:8554/{SN}_view_1_output_1080p",
+            ],
+        )
+        self.assertEqual(
+            [cam.unique_id for cam in cameras], [f"{SN}_camera", f"{SN}_camera_view_1"]
+        )
+
+    async def test_full_hd_preference_does_not_invent_support_on_an_older_bridge(
+        self,
+    ) -> None:
+        cameras, _ = await setup_camera(options={"live_output_resolution": "1080p"})
+        self.assertEqual(await cameras[0].stream_source(), f"rtsp://bridge:8554/{SN}")
 
     async def test_setup_creates_two_entities_with_stable_primary_identity(
         self,
