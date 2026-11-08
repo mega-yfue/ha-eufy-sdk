@@ -78,6 +78,9 @@ class EufySdkCamera(CoordinatorEntity["EufySdkDataUpdateCoordinator"], Camera):
         self._rtsp_port = rtsp_port
         self._view = view["view"] if view else 0
         self._stream_id = view["id"] if view else sn
+        self._stream_path = (
+            view["stream"] if view else coordinator.data.get(sn, {}).get("stream")
+        ) or f"/stream/{sn}"
         self._snapshot_path = view["snapshot"] if view else None
         self._attr_unique_id = (
             f"{sn}_camera" if self._view == 0 else f"{sn}_camera_view_{self._view}"
@@ -117,7 +120,22 @@ class EufySdkCamera(CoordinatorEntity["EufySdkDataUpdateCoordinator"], Camera):
         )
 
     async def stream_source(self) -> str:
-        """Return the go2rtc RTSP URL — HA's stream component + go2rtc do the work."""
+        """
+        Return the source Home Assistant reads live video from.
+
+        A mains camera uses the bridge's go2rtc RTSP restream, which Home Assistant's
+        stream worker (HLS, camera.record) can open as well as its go2rtc.
+
+        A battery camera skips the stream worker (see async_create_stream), so only
+        Home Assistant's go2rtc reads its source, and that reads the bridge's /stream
+        feed directly. go2rtc reads raw H.264 and H.265 natively and waits for the
+        response as long as the bridge takes, so there is no RTSP DESCRIBE deadline
+        to miss while the camera wakes (ha-eufy-sdk#153), and no ffmpeg in between:
+        the restream's remux in the bridge's go2rtc probes the feed before it answers
+        DESCRIBE, which held back the first picture by about 2.4 s.
+        """
+        if on_battery_power(self.coordinator.data.get(self._sn)):
+            return f"http://{self._host}:{self._port}{self._stream_path}"
         return f"rtsp://{self._host}:{self._rtsp_port}/{self._stream_id}"
 
     async def async_create_stream(self) -> Stream | None:
@@ -127,7 +145,7 @@ class EufySdkCamera(CoordinatorEntity["EufySdkDataUpdateCoordinator"], Camera):
         That worker retries a failed or closed source forever, and every retry makes
         the bridge wake the camera over P2P. A battery camera was drained flat that way
         after one live view (ha-eufy-sdk#83). Live view then runs through Home
-        Assistant's go2rtc (WebRTC) on the same RTSP restream, so there is no HLS
+        Assistant's go2rtc (WebRTC) on the bridge's /stream feed, so there is no HLS
         fallback and no camera.record for battery cameras.
         """
         if on_battery_power(self.coordinator.data.get(self._sn)):

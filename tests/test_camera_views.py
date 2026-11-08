@@ -114,6 +114,16 @@ class CameraViewTests(unittest.IsolatedAsyncioTestCase):
                     ],
                 )
 
+    async def test_a_battery_view_reads_its_own_bridge_feed(self) -> None:
+        cameras, _ = await setup_camera(power="battery")
+        self.assertEqual(
+            [await cam.stream_source() for cam in cameras],
+            [
+                f"http://bridge:3000/stream/{SN}",
+                f"http://bridge:3000/stream/{SN}?view=1",
+            ],
+        )
+
     async def test_legacy_and_single_view_bridges_keep_one_primary_camera(self) -> None:
         for views in (None, [VIEWS[0]]):
             with self.subTest(views=views):
