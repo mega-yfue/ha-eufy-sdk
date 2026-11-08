@@ -15,6 +15,7 @@ class AlarmState(StrEnum):
     ARMED_CUSTOM_BYPASS = "armed_custom_bypass"
     ARMED_NIGHT = "armed_night"
     ARMED_VACATION = "armed_vacation"
+    ARMING = "arming"
     PENDING = "pending"
     TRIGGERED = "triggered"
 
@@ -54,6 +55,16 @@ def _as_int(raw: Any) -> int | None:
         except ValueError:
             return None
     return None
+
+
+def exit_delay_for_event(event: dict[str, Any]) -> int:
+    """
+    Seconds of exit delay a mode-switch push starts, 0 for none.
+
+    The hub reports it as `alarm_delay` on push 9 (MODE_SWITCH): the mode's
+    `count_down_arm` time, seen live on a T8010 as 30 for Away and 0 for Home/Off.
+    """
+    return max(_as_int(event.get("alarm_delay")) or 0, 0)
 
 
 def alarm_state_for_raw(raw: Any) -> AlarmState | None:
@@ -108,11 +119,13 @@ def panel_state_for(
 
     `state` is the polled device state (its `armingMode`); `alarm` is the station's
     entry in the push-fed lifecycle map. A sounding alarm wins over the arming mode,
-    then a running entry/exit delay, then the plain mode mapping.
+    then a running entry delay, then a running exit delay, then the plain mode mapping.
     """
     alarm = alarm or {}
     if alarm.get("alarmTriggered"):
         return AlarmState.TRIGGERED
     if alarm.get("alarmPending"):
         return AlarmState.PENDING
+    if alarm.get("alarmArming"):
+        return AlarmState.ARMING
     return alarm_state_for_raw(state.get("armingMode"))

@@ -78,8 +78,9 @@ class EufySdkAlarmControlPanel(
         The explicit Eufy-to-HA mapping, with the alarm lifecycle layered on top.
 
         `triggered` while the hub reports its alarm sounding and `pending` during an
-        entry/exit delay — both come from the `alarm` push (see alarm_sync) and clear on
-        the hub's own stop push or the auto-clear fallback.
+        entry delay come from the `alarm` push (see alarm_sync) and clear on the hub's
+        own stop push or the auto-clear fallback; `arming` during an exit delay comes
+        from the mode push and ends when the delay runs out or the mode changes.
         """
         alarms = self.coordinator.config_entry.runtime_data.station_alarms
         mode, _source = current_mode_for(self.device.get("state", {}), dt_util.now())

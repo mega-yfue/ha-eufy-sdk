@@ -36,8 +36,9 @@ class EufySdkData:
     # yet", never "no presets" — see presets.py.
     preset_slots: dict[str, list[Any]] = field(default_factory=dict)
     # Each station's alarm lifecycle from the `alarm` push ({sn: {alarmTriggered,
-    # alarmPending, alarmType, alarmUser}}). Kept here, outside the polled device
-    # state, so a coordinator refresh can't clear an alarm that is still sounding.
+    # alarmPending, alarmType, alarmUser}}) plus its exit countdown (`alarmArming`)
+    # from the mode push. Kept here, outside the polled device state, so a
+    # coordinator refresh can't clear an alarm that is still sounding.
     station_alarms: dict[str, dict[str, Any]] = field(default_factory=dict)
     # Who last switched each station's mode, from the mode-switch push ({sn:
     # {changed_by, changed_via}}). Outside the polled state for the same reason.

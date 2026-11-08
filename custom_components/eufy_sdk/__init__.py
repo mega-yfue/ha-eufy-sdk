@@ -15,12 +15,13 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.event import async_call_later
 from homeassistant.loader import async_get_loaded_integration
 
-from .alarm_logic import PHASE_STOPPED
+from .alarm_logic import PHASE_STOPPED, exit_delay_for_event
 from .alarm_sync import (
     alarm_station_serial,
     apply_alarm_event,
     clear_alarm,
     end_cancelled_delay,
+    set_exit_delay,
 )
 from .api import EufySdkApiClient
 from .arming_sync import apply_arming_mode_event
@@ -105,6 +106,48 @@ def _alarm_lifecycle(
     return on_alarm
 
 
+def _mode_change(
+    hass: HomeAssistant,
+    entry: EufySdkConfigEntry,
+    coordinator: EufySdkDataUpdateCoordinator,
+) -> Callable[[str | None, int], None]:
+    """
+    Build the handler that folds a station's mode change into its countdowns.
+
+    Disarming (or going Home) during an entry delay answers with a mode change, not
+    an alarm stop, so a change to one of those ends `pending`. A switch into a mode
+    with an exit delay reports it in `alarm_delay`; the panel shows `arming` until
+    it runs out, and any further mode change ends it.
+    """
+    timers: dict[str, CALLBACK_TYPE] = {}
+
+    def on_mode(serial: str | None, exit_delay: int) -> None:
+        if not serial or serial not in (coordinator.data or {}):
+            return
+        alarms = entry.runtime_data.station_alarms
+        end_cancelled_delay(coordinator, alarms, serial)
+        if (cancel := timers.pop(serial, None)) is not None:
+            cancel()
+        set_exit_delay(coordinator, alarms, serial, arming=exit_delay > 0)
+        if not exit_delay:
+            return
+
+        @callback
+        def _armed(_now: datetime, sn: str = serial) -> None:
+            timers.pop(sn, None)
+            set_exit_delay(coordinator, alarms, sn, arming=False)
+
+        timers[serial] = async_call_later(hass, exit_delay, _armed)
+
+    def _cancel_all() -> None:
+        for cancel in timers.values():
+            cancel()
+        timers.clear()
+
+    entry.async_on_unload(_cancel_all)
+    return on_mode
+
+
 def _apply_property_changed(
     hass: HomeAssistant,
     entry: EufySdkConfigEntry,
@@ -149,16 +192,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: EufySdkConfigEntry) -> b
         hass.async_create_task(coordinator.async_request_refresh())
 
     on_alarm = _alarm_lifecycle(hass, entry, coordinator)
-
-    # Disarming (or going Home) during an entry/exit countdown answers with a mode
-    # change, not an alarm stop — so a mode change to one of those ends `pending`.
-    def _end_cancelled_delay(serial: str | None) -> None:
-        if serial:
-            end_cancelled_delay(coordinator, entry.runtime_data.station_alarms, serial)
+    on_mode = _mode_change(hass, entry, coordinator)
 
     async def _refresh_then_end_cancelled_delay(serial: str) -> None:
         await coordinator.async_request_refresh()
-        _end_cancelled_delay(serial)
+        on_mode(serial, 0)
 
     def _on_event(evt: dict) -> None:
         event = evt.get("event")
@@ -183,7 +221,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: EufySdkConfigEntry) -> b
                 apply_arming_mode_event(
                     coordinator, evt, entry.runtime_data.arming_changes
                 )
-                _end_cancelled_delay(serial)
+                on_mode(serial, exit_delay_for_event(evt))
             elif serial and serial in (coordinator.data or {}):
                 entry.async_create_background_task(
                     hass,
