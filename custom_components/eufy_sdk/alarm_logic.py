@@ -24,15 +24,20 @@ MODE_HOME = 1
 MODE_CUSTOM_1 = 3
 MODE_CUSTOM_2 = 4
 MODE_CUSTOM_3 = 5
+MODE_OFF = 6
 MODE_DISARMED = 63
 
 # Custom 1/2/3 retain the established old-integration compatibility mapping.
+# A HomeBase 2 (T8010) disarms to `off` (6), not `disarmed` (63): seen live, its
+# keypad's disarm reports `arming: 6, mode: 6`. HA has no "off" alarm state, and
+# neither mode guards anything, so both read as disarmed.
 RAW_TO_ALARM_STATE = {
     MODE_AWAY: AlarmState.ARMED_AWAY,
     MODE_HOME: AlarmState.ARMED_HOME,
     MODE_CUSTOM_1: AlarmState.ARMED_CUSTOM_BYPASS,
     MODE_CUSTOM_2: AlarmState.ARMED_NIGHT,
     MODE_CUSTOM_3: AlarmState.ARMED_VACATION,
+    MODE_OFF: AlarmState.DISARMED,
     MODE_DISARMED: AlarmState.DISARMED,
 }
 
