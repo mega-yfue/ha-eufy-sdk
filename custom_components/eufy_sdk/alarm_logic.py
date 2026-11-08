@@ -15,6 +15,7 @@ class AlarmState(StrEnum):
     ARMED_CUSTOM_BYPASS = "armed_custom_bypass"
     ARMED_NIGHT = "armed_night"
     ARMED_VACATION = "armed_vacation"
+    ARMING = "arming"
     PENDING = "pending"
     TRIGGERED = "triggered"
 
@@ -24,15 +25,20 @@ MODE_HOME = 1
 MODE_CUSTOM_1 = 3
 MODE_CUSTOM_2 = 4
 MODE_CUSTOM_3 = 5
+MODE_OFF = 6
 MODE_DISARMED = 63
 
 # Custom 1/2/3 retain the established old-integration compatibility mapping.
+# A HomeBase 2 (T8010) disarms to `off` (6), not `disarmed` (63): seen live, its
+# keypad's disarm reports `arming: 6, mode: 6`. HA has no "off" alarm state, and
+# neither mode guards anything, so both read as disarmed.
 RAW_TO_ALARM_STATE = {
     MODE_AWAY: AlarmState.ARMED_AWAY,
     MODE_HOME: AlarmState.ARMED_HOME,
     MODE_CUSTOM_1: AlarmState.ARMED_CUSTOM_BYPASS,
     MODE_CUSTOM_2: AlarmState.ARMED_NIGHT,
     MODE_CUSTOM_3: AlarmState.ARMED_VACATION,
+    MODE_OFF: AlarmState.DISARMED,
     MODE_DISARMED: AlarmState.DISARMED,
 }
 
@@ -49,6 +55,16 @@ def _as_int(raw: Any) -> int | None:
         except ValueError:
             return None
     return None
+
+
+def exit_delay_for_event(event: dict[str, Any]) -> int:
+    """
+    Seconds of exit delay a mode-switch push starts, 0 for none.
+
+    The hub reports it as `alarm_delay` on push 9 (MODE_SWITCH): the mode's
+    `count_down_arm` time, seen live on a T8010 as 30 for Away and 0 for Home/Off.
+    """
+    return max(_as_int(event.get("alarm_delay")) or 0, 0)
 
 
 def alarm_state_for_raw(raw: Any) -> AlarmState | None:
@@ -103,11 +119,13 @@ def panel_state_for(
 
     `state` is the polled device state (its `armingMode`); `alarm` is the station's
     entry in the push-fed lifecycle map. A sounding alarm wins over the arming mode,
-    then a running entry/exit delay, then the plain mode mapping.
+    then a running entry delay, then a running exit delay, then the plain mode mapping.
     """
     alarm = alarm or {}
     if alarm.get("alarmTriggered"):
         return AlarmState.TRIGGERED
     if alarm.get("alarmPending"):
         return AlarmState.PENDING
+    if alarm.get("alarmArming"):
+        return AlarmState.ARMING
     return alarm_state_for_raw(state.get("armingMode"))

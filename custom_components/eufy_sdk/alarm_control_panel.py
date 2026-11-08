@@ -78,8 +78,9 @@ class EufySdkAlarmControlPanel(
         The explicit Eufy-to-HA mapping, with the alarm lifecycle layered on top.
 
         `triggered` while the hub reports its alarm sounding and `pending` during an
-        entry/exit delay — both come from the `alarm` push (see alarm_sync) and clear on
-        the hub's own stop push or the auto-clear fallback.
+        entry delay come from the `alarm` push (see alarm_sync) and clear on the hub's
+        own stop push or the auto-clear fallback; `arming` during an exit delay comes
+        from the mode push and ends when the delay runs out or the mode changes.
         """
         alarms = self.coordinator.config_entry.runtime_data.station_alarms
         mode, _source = current_mode_for(self.device.get("state", {}), dt_util.now())
@@ -87,9 +88,29 @@ class EufySdkAlarmControlPanel(
         return AlarmControlPanelState(state) if state is not None else None
 
     @property
+    def changed_by(self) -> str | None:
+        """The account that last switched the mode, as the mode-switch push names it."""
+        return self._arming_change.get("changed_by")
+
+    @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        """The set mode, the enforced mode id and its source, as on Current mode."""
-        return current_mode_attributes(self.device.get("state", {}), dt_util.now())
+        """
+        The set mode, the enforced mode id and its source, as on Current mode.
+
+        Plus `changed_via` (keypad / app, or eufy's raw code) once a mode-switch
+        push has said how the last change was made.
+        """
+        attributes = current_mode_attributes(
+            self.device.get("state", {}), dt_util.now()
+        )
+        if (via := self._arming_change.get("changed_via")) is not None:
+            attributes["changed_via"] = via
+        return attributes
+
+    @property
+    def _arming_change(self) -> dict[str, Any]:
+        changes = self.coordinator.config_entry.runtime_data.arming_changes
+        return changes.get(self._sn, {})
 
     async def _set_mode(self, raw: int) -> None:
         """Send a raw mode; the bridge event is the canonical state update."""

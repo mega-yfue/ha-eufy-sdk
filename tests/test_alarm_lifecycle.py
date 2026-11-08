@@ -4,6 +4,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 import custom_components.eufy_sdk as integration
+from custom_components.eufy_sdk.alarm_logic import AlarmState, panel_state_for
 
 
 def _trigger(serial: str = "homebase") -> dict:
@@ -88,6 +89,22 @@ class AlarmLifecycleTests(unittest.TestCase):
         cancel_all()
 
         self.cancels[0].assert_called_once_with()
+
+    def test_exit_delay_shows_arming_until_the_timer_or_a_disarm(self):
+        on_mode = integration._mode_change(self.hass, self.entry, self.coordinator)
+
+        def panel() -> AlarmState | None:
+            return panel_state_for({"armingMode": 0}, self._state())
+
+        on_mode("homebase", integration.exit_delay_for_event({"alarm_delay": 30}))
+        self.assertEqual((panel(), self.scheduled[0][0]), (AlarmState.ARMING, 30))
+        self.scheduled[0][1](None)
+        self.assertEqual(panel(), AlarmState.ARMED_AWAY)
+
+        on_mode("homebase", 30)
+        on_mode("homebase", integration.exit_delay_for_event({"alarm_delay": 0}))
+        self.cancels[1].assert_called_once_with()
+        self.assertFalse(self._state()["alarmArming"])
 
 
 if __name__ == "__main__":

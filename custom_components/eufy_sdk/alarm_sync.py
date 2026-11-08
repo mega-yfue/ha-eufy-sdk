@@ -106,3 +106,15 @@ def end_cancelled_delay(coordinator: Any, alarms: StationAlarms, serial: str) ->
     if alarm_state_for_raw(raw) not in (AlarmState.DISARMED, AlarmState.ARMED_HOME):
         return False
     return clear_pending(coordinator, alarms, serial)
+
+
+def set_exit_delay(
+    coordinator: Any, alarms: StationAlarms, serial: str, *, arming: bool
+) -> bool:
+    """Start or end a station's exit countdown (the panel's `arming`)."""
+    alarm = alarms.setdefault(serial, {})
+    if bool(alarm.get("alarmArming")) == arming:
+        return False
+    alarm["alarmArming"] = arming
+    coordinator.async_update_listeners()
+    return True
