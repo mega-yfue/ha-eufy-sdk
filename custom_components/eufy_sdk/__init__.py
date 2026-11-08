@@ -180,7 +180,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: EufySdkConfigEntry) -> b
         elif event == "armingModeChanged":
             serial = evt.get("deviceSn") or evt.get("sn")
             if "mode" in evt:
-                apply_arming_mode_event(coordinator, evt)
+                apply_arming_mode_event(
+                    coordinator, evt, entry.runtime_data.arming_changes
+                )
                 _end_cancelled_delay(serial)
             elif serial and serial in (coordinator.data or {}):
                 entry.async_create_background_task(
