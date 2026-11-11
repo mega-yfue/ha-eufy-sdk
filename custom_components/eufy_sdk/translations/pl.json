@@ -1,0 +1,212 @@
+{
+  "entity": {
+    "binary_sensor": {
+      "streaming": {
+        "name": "Transmisja"
+      },
+      "connectivity": {
+        "name": "Łączność"
+      },
+      "package": {
+        "name": "Paczka"
+      }
+    },
+    "button": {
+      "reboot": {
+        "name": "Uruchom ponownie"
+      },
+      "refresh_last_event": {
+        "name": "Odśwież ostatnie zdarzenie"
+      },
+      "tilt_up": {
+        "name": "Pochyl w górę"
+      },
+      "tilt_down": {
+        "name": "Pochyl w dół"
+      },
+      "pan_left": {
+        "name": "Obróć w lewo"
+      },
+      "pan_right": {
+        "name": "Obróć w prawo"
+      },
+      "preset_goto": {
+        "name": "Przejdź do zapisanej pozycji"
+      },
+      "open_lid": {
+        "name": "Otwórz pokrywę"
+      },
+      "take_screenshot": {
+        "name": "Zrób zrzut ekranu"
+      }
+    },
+    "event": {
+      "doorbell": {
+        "name": "Dzwonek do drzwi"
+      },
+      "detection": {
+        "name": "Wykrycie"
+      }
+    },
+    "image": {
+      "last_event": {
+        "name": "Ostatnie zdarzenie"
+      },
+      "last_screen": {
+        "name": "Ostatni widok"
+      }
+    },
+    "select": {
+      "preset": {
+        "name": "Zapisana pozycja"
+      },
+      "snapshot_policy": {
+        "name": "Źródło zdjęcia",
+        "state": {
+          "default": "Domyślny",
+          "auto": "Automatyczny",
+          "stored": "Zapisany obraz",
+          "live": "Na żywo",
+          "screen": "Ostatni widok (ostatnio oglądany obraz)"
+        }
+      }
+    },
+    "sensor": {
+      "info": {
+        "name": "Informacje"
+      },
+      "last_person": {
+        "name": "Ostatnia osoba"
+      },
+      "stream_url": {
+        "name": "Adres URL strumienia"
+      },
+      "light_effect": {
+        "name": "Efekt świetlny"
+      },
+      "current_mode": {
+        "name": "Bieżący tryb"
+      }
+    },
+    "switch": {
+      "detect_human": {
+        "name": "Wykrywanie ludzi"
+      },
+      "detect_vehicle": {
+        "name": "Wykrywanie pojazdów"
+      },
+      "detect_pet": {
+        "name": "Wykrywanie zwierząt"
+      },
+      "face_recognition": {
+        "name": "Rozpoznawanie twarzy"
+      }
+    }
+  },
+  "config": {
+    "step": {
+      "user": {
+        "title": "Połącz z mostkiem eufy",
+        "description": "Wprowadź host i port mostka ha-eufy-sdk. Port RTSP to opublikowany port hosta dla go2rtc.",
+        "data": {
+          "host": "Host",
+          "port": "Port",
+          "go2rtc_rtsp_port": "Port RTSP"
+        }
+      },
+      "hassio_confirm": {
+        "title": "Skonfiguruj wykryty mostek eufy",
+        "description": "Home Assistant wykrył dodatek mostka eufy-sdk pod adresem {host}. Strumienie z kamer będą używać RTSP pod adresem {rtsp}."
+      },
+      "reconfigure": {
+        "title": "Zmień konfigurację mostka eufy",
+        "description": "Zmień host/port mostka lub opublikowany port RTSP go2rtc.",
+        "data": {
+          "host": "Host",
+          "port": "Port",
+          "go2rtc_rtsp_port": "Port RTSP"
+        }
+      },
+      "twofa": {
+        "title": "Uwierzytelnianie dwuskładnikowe",
+        "description": "Na Twoje konto eufy wysłano kod weryfikacyjny. Wprowadź go poniżej (zaznacz „Wyślij kod ponownie”, aby otrzymać nowy).",
+        "data": {
+          "code": "Kod weryfikacyjny",
+          "resend": "Wyślij kod ponownie"
+        }
+      },
+      "captcha": {
+        "title": "Captcha",
+        "description": "Wprowadź znaki z obrazka poniżej (zaznacz „Odśwież obrazek”, aby otrzymać nowy).\n\n{image}",
+        "data": {
+          "answer": "Captcha",
+          "refresh": "Odśwież obrazek"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Ponownie uwierzytelnij mostek eufy",
+        "description": "Mostek pod adresem {host} musi zalogować się ponownie (jego sesja wygasła, więc eufy wymaga 2FA/captcha). Upewnij się, że mostek działa i jest osiągalny, a następnie zatwierdź, aby kontynuować."
+      }
+    },
+    "error": {
+      "cannot_connect": "Nie można połączyć się z mostkiem pod tym hostem/portem.",
+      "invalid_2fa": "Kod weryfikacyjny nie został zaakceptowany.",
+      "invalid_captcha": "Captcha nie została zaakceptowana."
+    },
+    "abort": {
+      "already_configured": "Ten mostek jest już skonfigurowany.",
+      "cannot_connect": "Nie można połączyć się z mostkiem.",
+      "invalid_discovery_info": "Dodatek mostka eufy przesłał niekompletne dane wykrywania.",
+      "reauth_successful": "Mostek został ponownie uwierzytelniony."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opcje mostka eufy",
+        "description": "Określ, jak często mostek odpytuje chmurę eufy o stan urządzeń.",
+        "data": {
+          "poll_interval_minutes": "Interwał odpytywania chmury (minuty)",
+          "soc_refresh_seconds": "Odświeżanie limitów SOC Solarbanka (sekundy)"
+        },
+        "data_description": {
+          "soc_refresh_seconds": "Jak często HA ponownie odczytuje z chmury limity rozładowania/ładowania Solarbanka, aby zmiana wprowadzona w aplikacji była widoczna na suwakach. Dotyczy tylko posiadaczy Solarbanka."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "preset_empty": {
+      "message": "Zapisana pozycja {slot} jest pusta. Najpierw zapisz w niej położenie w aplikacji eufy."
+    }
+  },
+  "device_automation": {
+    "trigger_type": {
+      "ringing": "Dzwonek do drzwi dzwoni",
+      "motion": "Wykryto ruch",
+      "person": "Wykryto osobę",
+      "pet": "Wykryto zwierzę",
+      "dog": "Wykryto psa",
+      "vehicle": "Wykryto pojazd",
+      "stranger": "Wykryto nieznajomego",
+      "sound": "Wykryto dźwięk",
+      "crying": "Wykryto płacz",
+      "package_delivered": "Paczka dostarczona",
+      "package_taken": "Paczka zabrana",
+      "package_stranded": "Paczka nieodebrana"
+    }
+  },
+  "issues": {
+    "preload_battery_camera": {
+      "title": "Wstępne ładowanie strumienia rozładowuje baterię kamery {camera}",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Wyłącz wstępne ładowanie strumienia kamery {camera}",
+            "description": "Kamera {camera} działa na baterii, a opcja „Wstępnie ładuj strumień kamery” jest dla niej włączona. Home Assistant utrzymuje wtedy jej strumień na stałe i łączy się ponownie za każdym razem, gdy się zakończy, co raz po raz wybudza kamerę i rozładowuje jej baterię.\n\nZatwierdź, aby wyłączyć wstępne ładowanie dla tej kamery. Podgląd na żywo nadal działa; uruchamia się dopiero po jego otwarciu."
+          }
+        }
+      }
+    }
+  }
+}
