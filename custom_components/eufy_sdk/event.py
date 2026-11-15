@@ -17,10 +17,9 @@ from .pushmap import (
     DETECTION_CAPABILITIES,
     DETECTION_EVENTS,
     DOORBELL_EVENT,
-    LOCK_EVENT,
-    LOCK_EVENT_CODES,
     LOCK_LOCKED,
     LOCK_UNLOCKED,
+    decode_lock_event,
 )
 
 if TYPE_CHECKING:
@@ -127,19 +126,14 @@ class EufySdkLockEvent(_EufySdkBusEvent):
     def _handle_event(self, event: Event) -> None:
         """Fire on this lock's `lockState` push with its method and user."""
         data = event.data
-        if data.get("deviceSn") != self._sn or data.get("event") != LOCK_EVENT:
+        if data.get("deviceSn") != self._sn:
             return
+        decoded = decode_lock_event(data)
+        if decoded is None:
+            return
+        event_type, method, user = decoded
         code = data.get("eventType", data.get("event_type"))
-        event_type, method = LOCK_EVENT_CODES.get(code, (None, None))
-        if event_type is None:
-            locked = data.get("locked")
-            if not isinstance(locked, bool):
-                return
-            event_type = LOCK_LOCKED if locked else LOCK_UNLOCKED
-        self._trigger_event(
-            event_type,
-            {"method": method, "user": data.get("nick_name") or None, "code": code},
-        )
+        self._trigger_event(event_type, {"method": method, "user": user, "code": code})
         self.async_write_ha_state()
 
     def _match(self, bus_event: str | None) -> str | None:  # noqa: ARG002

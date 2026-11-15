@@ -121,3 +121,25 @@ LOCK_EVENT_CODES: dict[int, tuple[str, str]] = {
     268: (LOCK_LOCKED, "temporary_password"),
     269: (LOCK_UNLOCKED, "temporary_password"),
 }
+LOCK_METHODS: tuple[str, ...] = tuple(
+    sorted({method for _, method in LOCK_EVENT_CODES.values()})
+)
+
+
+def decode_lock_event(data: dict) -> tuple[str, str | None, str | None] | None:
+    """
+    Decode a `lockState` push into (event_type, method, user), or None.
+
+    The method comes from `eventType`; an unknown code falls back to the decoded
+    `locked` bool with no method. Anything without either is not a lock report.
+    """
+    if data.get("event") != LOCK_EVENT:
+        return None
+    code = data.get("eventType", data.get("event_type"))
+    event_type, method = LOCK_EVENT_CODES.get(code, (None, None))
+    if event_type is None:
+        locked = data.get("locked")
+        if not isinstance(locked, bool):
+            return None
+        event_type = LOCK_LOCKED if locked else LOCK_UNLOCKED
+    return event_type, method, data.get("nick_name") or None

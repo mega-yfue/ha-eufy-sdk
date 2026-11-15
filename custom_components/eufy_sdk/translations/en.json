@@ -107,6 +107,24 @@
       "last_person": {
         "name": "Last person"
       },
+      "last_lock_method": {
+        "name": "Last lock method",
+        "state": {
+          "manual": "Manual",
+          "automatic": "Automatic",
+          "password": "Password",
+          "fingerprint": "Fingerprint",
+          "app": "App",
+          "keypad": "Keypad",
+          "temporary_password": "Temporary password"
+        }
+      },
+      "last_lock_user": {
+        "name": "Last lock user"
+      },
+      "last_unlock": {
+        "name": "Last unlock"
+      },
       "stream_url": {
         "name": "Stream URL"
       },
