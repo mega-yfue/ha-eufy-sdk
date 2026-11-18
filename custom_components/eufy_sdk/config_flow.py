@@ -18,10 +18,12 @@ from .api import (
 from .const import (
     CONF_GO2RTC_RTSP_PORT,
     CONF_HOST,
+    CONF_LIVE_OUTPUT_RESOLUTION,
     CONF_POLL_INTERVAL,
     CONF_PORT,
     CONF_SOC_REFRESH,
     DEFAULT_GO2RTC_RTSP_PORT,
+    DEFAULT_LIVE_OUTPUT_RESOLUTION,
     DEFAULT_POLL_INTERVAL_MIN,
     DEFAULT_PORT,
     DEFAULT_SOC_REFRESH_SEC,
@@ -467,10 +469,21 @@ class EufySdkOptionsFlow(config_entries.OptionsFlowWithReload):
         soc_current = self.config_entry.options.get(
             CONF_SOC_REFRESH, DEFAULT_SOC_REFRESH_SEC
         )
+        resolution = self.config_entry.options.get(
+            CONF_LIVE_OUTPUT_RESOLUTION, DEFAULT_LIVE_OUTPUT_RESOLUTION
+        )
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
                 {
+                    vol.Required(
+                        CONF_LIVE_OUTPUT_RESOLUTION, default=resolution
+                    ): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=["default", "1080p"],
+                            translation_key="live_output_resolution",
+                        )
+                    ),
                     vol.Required(
                         CONF_POLL_INTERVAL, default=current_poll_interval
                     ): selector.NumberSelector(

@@ -167,10 +167,12 @@
         "description": "Adjust how often the bridge polls the eufy cloud for device state.",
         "data": {
           "poll_interval_minutes": "Cloud poll interval (minutes)",
-          "soc_refresh_seconds": "Solarbank SOC-limit refresh (seconds)"
+          "soc_refresh_seconds": "Solarbank SOC-limit refresh (seconds)",
+          "live_output_resolution": "Live video output resolution"
         },
         "data_description": {
-          "soc_refresh_seconds": "How often HA re-reads a Solarbank's discharge/charge limits from the cloud, so an app-side change reflects on the sliders. Only applies if you have a Solarbank."
+          "soc_refresh_seconds": "How often HA re-reads a Solarbank's discharge/charge limits from the cloud, so an app-side change reflects on the sliders. Only applies if you have a Solarbank.",
+          "live_output_resolution": "Use Full HD on media routes that advertise it. Other cameras keep their default output. This does not change recording quality or the eufy app setting."
         }
       }
     }
@@ -206,6 +208,14 @@
             "description": "{camera} runs on battery, and \"Preload camera stream\" is on for it. Home Assistant then keeps its stream running permanently and reconnects whenever it ends, which wakes the camera over and over and drains its battery.\n\nSubmit to turn preloading off for this camera. Live view still works; it just starts when you open it."
           }
         }
+      }
+    }
+  },
+  "selector": {
+    "live_output_resolution": {
+      "options": {
+        "default": "Default output",
+        "1080p": "Full HD (1080p)"
       }
     }
   }
