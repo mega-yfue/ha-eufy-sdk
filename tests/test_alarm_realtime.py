@@ -109,7 +109,7 @@ class AlarmRealtimeTests(unittest.TestCase):
 
     def test_disarm_or_home_during_a_countdown_ends_pending(self):
         delayed = {"event": "alarm", "deviceSn": "homebase", "phase": "delayed"}
-        for mode, ends in ((63, True), (1, True), (0, False), (3, False)):
+        for mode, ends in ((63, True), (6, True), (1, True), (0, False), (3, False)):
             coordinator, alarms = _coordinator(), {}
             alarm_sync.apply_alarm_event(coordinator, alarms, delayed)
             coordinator.data["homebase"]["state"]["armingMode"] = mode

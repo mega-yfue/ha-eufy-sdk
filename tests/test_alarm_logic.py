@@ -14,7 +14,7 @@ _SPEC.loader.exec_module(_MODULE)
 class AlarmLogicTests(unittest.TestCase):
     def test_explicit_modes_map_to_alarm_states(self):
         self.assertEqual(
-            [_MODULE.alarm_state_for_raw(raw) for raw in (0, 1, 3, 4, 5, 63)],
+            [_MODULE.alarm_state_for_raw(raw) for raw in (0, 1, 3, 4, 5, 6, 63)],
             [
                 _MODULE.AlarmState.ARMED_AWAY,
                 _MODULE.AlarmState.ARMED_HOME,
@@ -22,11 +22,12 @@ class AlarmLogicTests(unittest.TestCase):
                 _MODULE.AlarmState.ARMED_NIGHT,
                 _MODULE.AlarmState.ARMED_VACATION,
                 _MODULE.AlarmState.DISARMED,
+                _MODULE.AlarmState.DISARMED,
             ],
         )
 
     def test_unmapped_modes_remain_unknown(self):
-        for raw in (2, 6, 47, None, True, 3.9, "custom2"):
+        for raw in (2, 47, None, True, 3.9, "custom2"):
             self.assertIsNone(_MODULE.alarm_state_for_raw(raw))
 
     def test_alarm_phase_reads_the_stop_codes_not_the_static_phase(self):
