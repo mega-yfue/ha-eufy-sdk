@@ -12,11 +12,14 @@ from homeassistant.components.event import (
 from homeassistant.core import callback
 
 from .const import EVENT_TYPE
-from .entity import EufySdkDeviceEntity
+from .entity import EufySdkDeviceEntity, has_capability
 from .pushmap import (
     DETECTION_CAPABILITIES,
     DETECTION_EVENTS,
     DOORBELL_EVENT,
+    LOCK_LOCKED,
+    LOCK_UNLOCKED,
+    decode_lock_event,
 )
 
 if TYPE_CHECKING:
@@ -32,7 +35,7 @@ async def async_setup_entry(
     entry: EufySdkConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Create a Doorbell event for doorbells and a Detection event for cameras."""
+    """Create Doorbell, Detection and Lock event entities by device capability."""
     coordinator = entry.runtime_data.coordinator
     entities: list[EventEntity] = []
     for sn, dev in coordinator.data.items():
@@ -41,6 +44,8 @@ async def async_setup_entry(
             entities.append(EufySdkDoorbellEvent(coordinator, sn))
         if caps & DETECTION_CAPABILITIES:
             entities.append(EufySdkDetectionEvent(coordinator, sn))
+        if has_capability(dev, "lock"):
+            entities.append(EufySdkLockEvent(coordinator, sn))
     async_add_entities(entities)
 
 
@@ -103,3 +108,34 @@ class EufySdkDetectionEvent(_EufySdkBusEvent):
     def _match(self, bus_event: str | None) -> str | None:
         """Map a detection push event to its event_type."""
         return DETECTION_EVENTS.get(bus_event) if bus_event else None
+
+
+class EufySdkLockEvent(_EufySdkBusEvent):
+    """Each lock/unlock as an event, with how (`method`) and who (`user`) did it."""
+
+    _attr_translation_key = "lock_event"
+    _attr_icon = "mdi:lock-clock"
+
+    def __init__(self, coordinator: EufySdkDataUpdateCoordinator, sn: str) -> None:
+        """Bind to a lock-capable device."""
+        super().__init__(coordinator, sn)
+        self._attr_unique_id = f"{sn}_lock_event"
+        self._attr_event_types = [LOCK_LOCKED, LOCK_UNLOCKED]
+
+    @callback
+    def _handle_event(self, event: Event) -> None:
+        """Fire on this lock's `lockState` push with its method and user."""
+        data = event.data
+        if data.get("deviceSn") != self._sn:
+            return
+        decoded = decode_lock_event(data)
+        if decoded is None:
+            return
+        event_type, method, user = decoded
+        code = data.get("eventType", data.get("event_type"))
+        self._trigger_event(event_type, {"method": method, "user": user, "code": code})
+        self.async_write_ha_state()
+
+    def _match(self, bus_event: str | None) -> str | None:  # noqa: ARG002
+        """Unused: the lock event decodes the whole payload in `_handle_event`."""
+        return None

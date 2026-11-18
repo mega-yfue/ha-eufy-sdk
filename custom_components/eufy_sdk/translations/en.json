@@ -46,6 +46,35 @@
       },
       "detection": {
         "name": "Detection"
+      },
+      "lock_event": {
+        "name": "Lock event",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "locked": "Locked",
+              "unlocked": "Unlocked"
+            }
+          },
+          "method": {
+            "name": "Method",
+            "state": {
+              "manual": "Manual",
+              "automatic": "Automatic",
+              "password": "Password",
+              "fingerprint": "Fingerprint",
+              "app": "App",
+              "keypad": "Keypad",
+              "temporary_password": "Temporary password"
+            }
+          },
+          "user": {
+            "name": "User"
+          },
+          "code": {
+            "name": "Event code"
+          }
+        }
       }
     },
     "image": {
@@ -77,6 +106,24 @@
       },
       "last_person": {
         "name": "Last person"
+      },
+      "last_lock_method": {
+        "name": "Last lock method",
+        "state": {
+          "manual": "Manual",
+          "automatic": "Automatic",
+          "password": "Password",
+          "fingerprint": "Fingerprint",
+          "app": "App",
+          "keypad": "Keypad",
+          "temporary_password": "Temporary password"
+        }
+      },
+      "last_lock_user": {
+        "name": "Last lock user"
+      },
+      "last_unlock": {
+        "name": "Last unlock"
       },
       "stream_url": {
         "name": "Stream URL"
