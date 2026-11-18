@@ -125,6 +125,8 @@ class EufySdkSwitch(EufySdkPropertyEntity, SwitchEntity):
         super().__init__(coordinator, sn, spec)
         if is_setting(self._prop):
             self._attr_entity_category = EntityCategory.CONFIG
+        if self._prop == "light" and not spec.get("writeOnly"):
+            self._attr_entity_registry_visible_default = False
 
     @property
     def is_on(self) -> bool | None:
