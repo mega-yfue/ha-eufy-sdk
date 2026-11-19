@@ -1,0 +1,269 @@
+{
+  "entity": {
+    "binary_sensor": {
+      "streaming": {
+        "name": "Transmisión"
+      },
+      "connectivity": {
+        "name": "Conectividad"
+      },
+      "package": {
+        "name": "Paquete"
+      }
+    },
+    "button": {
+      "reboot": {
+        "name": "Reiniciar"
+      },
+      "refresh_last_event": {
+        "name": "Actualizar último evento"
+      },
+      "tilt_up": {
+        "name": "Inclinar hacia arriba"
+      },
+      "tilt_down": {
+        "name": "Inclinar hacia abajo"
+      },
+      "pan_left": {
+        "name": "Girar a la izquierda"
+      },
+      "pan_right": {
+        "name": "Girar a la derecha"
+      },
+      "preset_goto": {
+        "name": "Ir al preajuste"
+      },
+      "open_lid": {
+        "name": "Abrir tapa"
+      },
+      "take_screenshot": {
+        "name": "Hacer captura"
+      }
+    },
+    "event": {
+      "doorbell": {
+        "name": "Timbre"
+      },
+      "detection": {
+        "name": "Detección"
+      },
+      "lock_event": {
+        "name": "Evento de la cerradura",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "locked": "Bloqueada",
+              "unlocked": "Desbloqueada"
+            }
+          },
+          "method": {
+            "name": "Método",
+            "state": {
+              "manual": "Manual",
+              "automatic": "Automático",
+              "password": "Contraseña",
+              "fingerprint": "Huella dactilar",
+              "app": "App",
+              "keypad": "Teclado",
+              "temporary_password": "Contraseña temporal"
+            }
+          },
+          "user": {
+            "name": "Usuario"
+          },
+          "code": {
+            "name": "Código del evento"
+          }
+        }
+      }
+    },
+    "image": {
+      "last_event": {
+        "name": "Último evento"
+      },
+      "last_screen": {
+        "name": "Última captura"
+      }
+    },
+    "select": {
+      "preset": {
+        "name": "Preajuste"
+      },
+      "snapshot_policy": {
+        "name": "Política de instantáneas",
+        "state": {
+          "default": "Predeterminada",
+          "auto": "Automática",
+          "stored": "Almacenada",
+          "live": "En directo",
+          "screen": "Última captura (última imagen vista)"
+        }
+      }
+    },
+    "sensor": {
+      "info": {
+        "name": "Información"
+      },
+      "last_person": {
+        "name": "Última persona"
+      },
+      "last_lock_method": {
+        "name": "Último método de la cerradura",
+        "state": {
+          "manual": "Manual",
+          "automatic": "Automático",
+          "password": "Contraseña",
+          "fingerprint": "Huella dactilar",
+          "app": "App",
+          "keypad": "Teclado",
+          "temporary_password": "Contraseña temporal"
+        }
+      },
+      "last_lock_user": {
+        "name": "Último usuario de la cerradura"
+      },
+      "last_unlock": {
+        "name": "Último desbloqueo"
+      },
+      "stream_url": {
+        "name": "URL de la transmisión"
+      },
+      "light_effect": {
+        "name": "Efecto de luz"
+      },
+      "current_mode": {
+        "name": "Modo actual"
+      }
+    },
+    "switch": {
+      "detect_human": {
+        "name": "Detectar personas"
+      },
+      "detect_vehicle": {
+        "name": "Detectar vehículos"
+      },
+      "detect_pet": {
+        "name": "Detectar mascotas"
+      },
+      "face_recognition": {
+        "name": "Reconocimiento facial"
+      }
+    }
+  },
+  "config": {
+    "step": {
+      "user": {
+        "title": "Conectar con el puente de eufy",
+        "description": "Introduce el host y el puerto de tu puente ha-eufy-sdk. El puerto RTSP es el puerto publicado en el host para go2rtc.",
+        "data": {
+          "host": "Host",
+          "port": "Puerto",
+          "go2rtc_rtsp_port": "Puerto RTSP"
+        }
+      },
+      "hassio_confirm": {
+        "title": "Configurar el puente de eufy descubierto",
+        "description": "Home Assistant ha descubierto el complemento del puente eufy-sdk en {host}. Las transmisiones de las cámaras usarán RTSP en {rtsp}."
+      },
+      "reconfigure": {
+        "title": "Reconfigurar el puente de eufy",
+        "description": "Actualiza el host/puerto del puente o el puerto RTSP publicado de go2rtc.",
+        "data": {
+          "host": "Host",
+          "port": "Puerto",
+          "go2rtc_rtsp_port": "Puerto RTSP"
+        }
+      },
+      "twofa": {
+        "title": "Autenticación de dos factores",
+        "description": "Se ha enviado un código de verificación a tu cuenta de eufy. Introdúcelo a continuación (marca Reenviar código para pedir uno nuevo).",
+        "data": {
+          "code": "Código de verificación",
+          "resend": "Reenviar código"
+        }
+      },
+      "captcha": {
+        "title": "Captcha",
+        "description": "Introduce los caracteres de la imagen de abajo (marca Actualizar imagen para obtener otra).\n\n{image}",
+        "data": {
+          "answer": "Captcha",
+          "refresh": "Actualizar imagen"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Volver a autenticar el puente de eufy",
+        "description": "El puente en {host} tiene que volver a iniciar sesión (su sesión ha caducado, así que eufy pide 2FA/captcha). Asegúrate de que el puente esté en marcha y sea accesible y, después, envía el formulario para continuar."
+      }
+    },
+    "error": {
+      "cannot_connect": "No se ha podido acceder al puente en ese host/puerto.",
+      "invalid_2fa": "No se ha aceptado ese código de verificación.",
+      "invalid_captcha": "No se ha aceptado ese captcha."
+    },
+    "abort": {
+      "already_configured": "Este puente ya está configurado.",
+      "cannot_connect": "No se ha podido acceder al puente.",
+      "invalid_discovery_info": "El complemento del puente de eufy ha enviado información de descubrimiento incompleta.",
+      "reauth_successful": "El puente se ha vuelto a autenticar."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opciones del puente de eufy",
+        "description": "Ajusta cada cuánto consulta el puente la nube de eufy para obtener el estado de los dispositivos.",
+        "data": {
+          "poll_interval_minutes": "Intervalo de consulta a la nube (minutos)",
+          "soc_refresh_seconds": "Actualización de los límites de SOC del Solarbank (segundos)",
+          "live_output_resolution": "Resolución de salida del vídeo en directo"
+        },
+        "data_description": {
+          "soc_refresh_seconds": "Cada cuánto vuelve a leer HA desde la nube los límites de descarga/carga de un Solarbank, para que un cambio hecho en la app se refleje en los controles deslizantes. Solo se aplica si tienes un Solarbank.",
+          "live_output_resolution": "Usa Full HD en las rutas multimedia que lo anuncien. Las demás cámaras mantienen su salida predeterminada. Esto no cambia la calidad de grabación ni el ajuste de la app de eufy."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "preset_empty": {
+      "message": "El preajuste {slot} no tiene ninguna posición guardada. Guarda primero una en él desde la app de eufy."
+    }
+  },
+  "device_automation": {
+    "trigger_type": {
+      "ringing": "Suena el timbre",
+      "motion": "Movimiento detectado",
+      "person": "Persona detectada",
+      "pet": "Mascota detectada",
+      "dog": "Perro detectado",
+      "vehicle": "Vehículo detectado",
+      "stranger": "Desconocido detectado",
+      "sound": "Sonido detectado",
+      "crying": "Llanto detectado",
+      "package_delivered": "Paquete entregado",
+      "package_taken": "Paquete recogido",
+      "package_stranded": "Paquete sin recoger"
+    }
+  },
+  "issues": {
+    "preload_battery_camera": {
+      "title": "La precarga de la transmisión agota la batería de {camera}",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Desactivar la precarga de la transmisión de {camera}",
+            "description": "{camera} funciona con batería y tiene activada la opción \"Precargar la transmisión de la cámara\". Por eso, Home Assistant mantiene su transmisión en marcha de forma permanente y se vuelve a conectar cada vez que termina, lo que despierta la cámara una y otra vez y agota su batería.\n\nEnvía el formulario para desactivar la precarga en esta cámara. La vista en directo sigue funcionando; simplemente se inicia cuando la abres."
+          }
+        }
+      }
+    }
+  },
+  "selector": {
+    "live_output_resolution": {
+      "options": {
+        "default": "Salida predeterminada",
+        "1080p": "Full HD (1080p)"
+      }
+    }
+  }
+}
