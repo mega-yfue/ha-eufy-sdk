@@ -46,6 +46,35 @@
       },
       "detection": {
         "name": "Wykrycie"
+      },
+      "lock_event": {
+        "name": "Zdarzenie zamka",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "locked": "Zamknięty",
+              "unlocked": "Otwarty"
+            }
+          },
+          "method": {
+            "name": "Sposób",
+            "state": {
+              "manual": "Ręcznie",
+              "automatic": "Automatycznie",
+              "password": "Hasło",
+              "fingerprint": "Odcisk palca",
+              "app": "Aplikacja",
+              "keypad": "Klawiatura",
+              "temporary_password": "Hasło tymczasowe"
+            }
+          },
+          "user": {
+            "name": "Użytkownik"
+          },
+          "code": {
+            "name": "Kod zdarzenia"
+          }
+        }
       }
     },
     "image": {
@@ -86,6 +115,24 @@
       },
       "current_mode": {
         "name": "Bieżący tryb"
+      },
+      "last_lock_method": {
+        "name": "Ostatni sposób obsługi zamka",
+        "state": {
+          "manual": "Ręcznie",
+          "automatic": "Automatycznie",
+          "password": "Hasło",
+          "fingerprint": "Odcisk palca",
+          "app": "Aplikacja",
+          "keypad": "Klawiatura",
+          "temporary_password": "Hasło tymczasowe"
+        }
+      },
+      "last_lock_user": {
+        "name": "Ostatni użytkownik zamka"
+      },
+      "last_unlock": {
+        "name": "Ostatnie otwarcie zamka"
       }
     },
     "switch": {
@@ -167,10 +214,12 @@
         "description": "Określ, jak często mostek odpytuje chmurę eufy o stan urządzeń.",
         "data": {
           "poll_interval_minutes": "Interwał odpytywania chmury (minuty)",
-          "soc_refresh_seconds": "Odświeżanie limitów SOC Solarbanka (sekundy)"
+          "soc_refresh_seconds": "Odświeżanie limitów SOC Solarbanka (sekundy)",
+          "live_output_resolution": "Rozdzielczość obrazu na żywo"
         },
         "data_description": {
-          "soc_refresh_seconds": "Jak często HA ponownie odczytuje z chmury limity rozładowania/ładowania Solarbanka, aby zmiana wprowadzona w aplikacji była widoczna na suwakach. Dotyczy tylko posiadaczy Solarbanka."
+          "soc_refresh_seconds": "Jak często HA ponownie odczytuje z chmury limity rozładowania/ładowania Solarbanka, aby zmiana wprowadzona w aplikacji była widoczna na suwakach. Dotyczy tylko posiadaczy Solarbanka.",
+          "live_output_resolution": "Używaj Full HD dla źródeł obrazu, które je udostępniają. Pozostałe kamery zachowują domyślną rozdzielczość. Nie zmienia to jakości nagrywania ani ustawienia w aplikacji eufy."
         }
       }
     }
@@ -206,6 +255,14 @@
             "description": "Kamera {camera} działa na baterii, a opcja „Wstępnie ładuj strumień kamery” jest dla niej włączona. Home Assistant utrzymuje wtedy jej strumień na stałe i łączy się ponownie za każdym razem, gdy się zakończy, co raz po raz wybudza kamerę i rozładowuje jej baterię.\n\nZatwierdź, aby wyłączyć wstępne ładowanie dla tej kamery. Podgląd na żywo nadal działa; uruchamia się dopiero po jego otwarciu."
           }
         }
+      }
+    }
+  },
+  "selector": {
+    "live_output_resolution": {
+      "options": {
+        "default": "Domyślna rozdzielczość",
+        "1080p": "Full HD (1080p)"
       }
     }
   }
