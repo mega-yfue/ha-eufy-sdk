@@ -6,7 +6,6 @@ from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 
 from custom_components.eufy_sdk.api import EufySdkApiClient
-
 from custom_components.eufy_sdk.button import EufyTakeScreenshotButton
 from custom_components.eufy_sdk.button import async_setup_entry as button_setup
 from custom_components.eufy_sdk.const import EVENT_TYPE
