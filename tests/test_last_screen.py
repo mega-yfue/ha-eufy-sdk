@@ -128,3 +128,46 @@ def _coordinator(devices: dict[str, dict[str, Any]]) -> SimpleNamespace:
     )
     runtime_data.coordinator = coordinator
     return coordinator
+
+
+class OpticalLastScreenTests(unittest.IsolatedAsyncioTestCase):
+    """Advertised optics retain separate cached images and capture buttons."""
+
+    async def test_platforms_create_two_optics_and_keep_primary_identity(self) -> None:
+        record = {
+            "sn": "CAM1", "name": "Synthetic garden PoE Cam S4",
+            "model": "T8E00", "modelName": "PoE Cam S4",
+            "category": "eufy_security", "deviceClass": "other",
+            "capabilities": ["camera", "video", "ptz"], "power": "wired",
+            "stream": "/stream/CAM1", "lastScreen": "/last-screen/CAM1",
+            "views": [
+                {"view": 0, "id": "CAM1", "lastScreen": "/last-screen/CAM1"},
+                {"view": 1, "id": "CAM1_view_1", "lastScreen": "/last-screen/CAM1?view=1"},
+            ],
+        }
+        coordinator = _coordinator({"CAM1": record})
+        coordinator.config_entry.runtime_data.client.take_screenshot = AsyncMock(return_value=12)
+        entry = SimpleNamespace(runtime_data=coordinator.config_entry.runtime_data,
+                                data={"host": "bridge", "port": 3000})
+        images = []
+        buttons = []
+        await image_setup(Mock(), entry, images.extend)
+        await button_setup(Mock(), entry, buttons.extend)
+        screens = [e for e in images if isinstance(e, EufySdkLastScreenImage)]
+        captures = [e for e in buttons if isinstance(e, EufyTakeScreenshotButton)]
+        self.assertEqual([e.unique_id for e in screens], ["CAM1_last_screen", "CAM1_last_screen_view_1"])
+        self.assertEqual([e.unique_id for e in captures], ["CAM1_take_screenshot", "CAM1_take_screenshot_view_1"])
+        self.assertEqual(screens[1]._url, "http://bridge:3000/last-screen/CAM1?view=1")
+        await captures[1].async_press()
+        coordinator.config_entry.runtime_data.client.take_screenshot.assert_awaited_once_with("CAM1", view=1)
+        for image in screens:
+            image.hass = Mock()
+            image._handle_event(SimpleNamespace(data={"deviceSn": "CAM1", "event": LAST_SCREEN_REFRESH, "view": 1}))
+        screens[0].hass.async_create_task.assert_not_called()
+        screens[1].hass.async_create_task.assert_called_once()
+        screens[1].hass.async_create_task.call_args.args[0].close()
+
+    async def test_legacy_bridge_with_views_does_not_invent_secondary_screens(self) -> None:
+        record = {**NEW, "views": [{"view": 0}, {"view": 1}]}
+        entities = await LastScreenGateTests()._entities(image_setup, record)
+        self.assertEqual([e.unique_id for e in entities if isinstance(e, EufySdkLastScreenImage)], ["CAM1_last_screen"])
