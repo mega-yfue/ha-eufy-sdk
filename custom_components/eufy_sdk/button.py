@@ -11,6 +11,7 @@ from homeassistant.exceptions import HomeAssistantError
 from . import presets
 from .const import DOMAIN
 from .entity import EufySdkDeviceEntity, has_capability
+from .last_screen import last_screen_views
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -57,9 +58,9 @@ async def async_setup_entry(
     # update the "Last screen" image — on demand, never on a timer (battery). Gated on
     # `lastScreen`: an older bridge has no `screen.take`, so the button could only fail.
     entities.extend(
-        EufyTakeScreenshotButton(coordinator, sn)
+        EufyTakeScreenshotButton(coordinator, sn, view=view["view"])
         for sn, dev in coordinator.data.items()
-        if dev.get("lastScreen")
+        for view in last_screen_views(dev)
     )
     # The d-pad and the preset actions, gated on the `ptz` capability the bridge
     # reports: a fixed camera has no `ptz` surface, so the bridge would refuse every
@@ -148,15 +149,25 @@ class EufyTakeScreenshotButton(EufySdkDeviceEntity, ButtonEntity):
     _attr_icon = "mdi:camera"
     _attr_translation_key = "take_screenshot"
 
-    def __init__(self, coordinator: EufySdkDataUpdateCoordinator, sn: str) -> None:
+    def __init__(
+        self, coordinator: EufySdkDataUpdateCoordinator, sn: str, *, view: int = 0
+    ) -> None:
         """Bind to a camera/doorbell serial."""
         super().__init__(coordinator, sn)
         self._attr_unique_id = f"{sn}_take_screenshot"
+        self._view = view
+        if view != 0:
+            self._attr_unique_id = f"{sn}_take_screenshot_view_{view}"
+            self._attr_translation_key = "take_screenshot_view"
+            self._attr_translation_placeholders = {"view": str(view)}
 
     async def async_press(self) -> None:
         """Ask the bridge for a fresh still (wakes a battery camera)."""
         client = self.client
-        await client.take_screenshot(self._sn)
+        if self._view == 0:
+            await client.take_screenshot(self._sn)
+        else:
+            await client.take_screenshot(self._sn, view=self._view)
 
 
 class EufySdkPtzButton(EufySdkDeviceEntity, ButtonEntity):

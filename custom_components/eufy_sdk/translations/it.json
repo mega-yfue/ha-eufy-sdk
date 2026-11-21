@@ -38,6 +38,9 @@
       },
       "take_screenshot": {
         "name": "Scatta screenshot"
+      },
+      "take_screenshot_view": {
+        "name": "Scatta screenshot (View {view})"
       }
     },
     "event": {
@@ -54,6 +57,9 @@
       },
       "last_screen": {
         "name": "Ultima schermata"
+      },
+      "last_screen_view": {
+        "name": "Ultima schermata (View {view})"
       }
     },
     "select": {
