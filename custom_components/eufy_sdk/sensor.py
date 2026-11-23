@@ -33,6 +33,7 @@ from .entity import (
     solix_devices_with,
 )
 from .light import LIGHT_HIDDEN_PROPS
+from .pushmap import LOCK_METHODS, LOCK_UNLOCKED, decode_lock_event
 from .schedule_logic import (
     current_mode_attributes,
     current_mode_for,
@@ -40,6 +41,8 @@ from .schedule_logic import (
 )
 
 if TYPE_CHECKING:
+    from datetime import datetime
+
     from homeassistant.core import Event, HomeAssistant
     from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -355,6 +358,18 @@ async def async_setup_entry(
         for sn, dev in coordinator.data.items()
         if has_capability(dev, "person_detection")
     )
+    # "Last lock method" / "Last lock user" per smart lock — how and by whom it was last
+    # locked or unlocked, from the `lockState` push (the Lock event entity's details).
+    entities.extend(
+        sensor_cls(coordinator, sn)
+        for sn, dev in coordinator.data.items()
+        if has_capability(dev, "lock")
+        for sensor_cls in (
+            EufySdkLastLockMethodSensor,
+            EufySdkLastLockUserSensor,
+            EufySdkLastUnlockSensor,
+        )
+    )
     # A "Current mode" sensor per station — the mode the hub is enforcing, which under
     # `schedule` / `geo` is not the one it was set to (see schedule_logic).
     entities.extend(
@@ -606,6 +621,111 @@ class EufySdkLastPersonSensor(EufySdkDeviceEntity, SensorEntity):
             "event": ev,
         }
         self.async_write_ha_state()
+
+
+class _EufySdkLastLockSensor(EufySdkDeviceEntity, SensorEntity):
+    """Base: the latest `lockState` push for one smart lock."""
+
+    _key: str
+
+    def __init__(self, coordinator: EufySdkDataUpdateCoordinator, sn: str) -> None:
+        """Bind to a lock-capable device."""
+        super().__init__(coordinator, sn)
+        self._attr_unique_id = f"{sn}_{self._key}"
+
+    async def async_added_to_hass(self) -> None:
+        """Subscribe to bridge lock reports while registered."""
+        await super().async_added_to_hass()
+        self.async_on_remove(self.hass.bus.async_listen(EVENT_TYPE, self._handle_event))
+
+    @callback
+    def _handle_event(self, event: Event) -> None:
+        """Record the method/user of this lock's latest lock or unlock."""
+        data = event.data
+        if data.get("deviceSn") != self._sn:
+            return
+        decoded = decode_lock_event(data)
+        if decoded is None:
+            return
+        action, method, user = decoded
+        self._attr_native_value = self._value(method, user)
+        self._attr_extra_state_attributes = {
+            "action": action,
+            "method": method,
+            "user": user,
+        }
+        self.async_write_ha_state()
+
+    def _value(self, method: str | None, user: str | None) -> str | None:
+        """Return this sensor's state from the decoded report."""
+        raise NotImplementedError
+
+
+class EufySdkLastLockMethodSensor(_EufySdkLastLockSensor):
+    """How the lock was last locked/unlocked (fingerprint, app, keypad, …)."""
+
+    _key = "last_lock_method"
+    _attr_translation_key = "last_lock_method"
+    _attr_icon = "mdi:lock-question"
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options: ClassVar[list[str]] = list(LOCK_METHODS)
+
+    def _value(self, method: str | None, user: str | None) -> str | None:  # noqa: ARG002
+        """Return the method, or None for a report with an unknown event code."""
+        return method
+
+
+class EufySdkLastLockUserSensor(_EufySdkLastLockSensor):
+    """Who last locked/unlocked the lock (the eufy account or lock user name)."""
+
+    _key = "last_lock_user"
+    _attr_translation_key = "last_lock_user"
+    _attr_icon = "mdi:account-lock"
+
+    def _value(self, method: str | None, user: str | None) -> str | None:  # noqa: ARG002
+        """Return the user's name, or None when the push carries no `nick_name`."""
+        return user
+
+
+class EufySdkLastUnlockSensor(_EufySdkLastLockSensor):
+    """
+    When the lock was last unlocked.
+
+    A TIMESTAMP sensor, so the frontend shows it in each viewer's own time zone. The
+    time is the lock's own `event_time` (epoch ms) from the push, falling back to
+    when the report arrived. Lock reports leave it unchanged.
+    """
+
+    _key = "last_unlock"
+    _attr_translation_key = "last_unlock"
+    _attr_icon = "mdi:lock-open-variant"
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+
+    @callback
+    def _handle_event(self, event: Event) -> None:
+        """Record the time, method and user of this lock's latest unlock."""
+        data = event.data
+        if data.get("deviceSn") != self._sn:
+            return
+        decoded = decode_lock_event(data)
+        if decoded is None or decoded[0] != LOCK_UNLOCKED:
+            return
+        _, method, user = decoded
+        self._attr_native_value = _push_time(data)
+        self._attr_extra_state_attributes = {"method": method, "user": user}
+        self.async_write_ha_state()
+
+    def _value(self, method: str | None, user: str | None) -> str | None:  # noqa: ARG002
+        """Unused: the unlock time is set in `_handle_event`."""
+        return None
+
+
+def _push_time(data: dict) -> datetime:
+    """Return a push's `event_time` (epoch ms) as UTC, else the time it arrived."""
+    event_time = data.get("event_time")
+    if isinstance(event_time, (int, float)) and event_time > 0:
+        return dt_util.utc_from_timestamp(event_time / 1000)
+    return dt_util.utcnow()
 
 
 class EufyStreamUrlSensor(EufySdkDeviceEntity, SensorEntity):

@@ -1,5 +1,5 @@
 """
-Light platform — eufy `smart_light` devices (on/off, brightness, RGB colour).
+Light platform — camera lights and eufy `smart_light` devices.
 
 A Permanent-Outdoor-Lights run is really one light, so present it as a HA `light`
 with a colour wheel, not a bare switch + number. On/off + brightness go over
@@ -28,7 +28,13 @@ from homeassistant.core import callback
 from homeassistant.helpers.event import async_call_later
 
 from .const import LOGGER
-from .entity import POST_WRITE_REFRESH_SECS, EufySdkDeviceEntity, has_capability
+from .entity import (
+    POST_WRITE_REFRESH_SECS,
+    EufySdkDeviceEntity,
+    EufySdkPropertyEntity,
+    classify,
+    has_capability,
+)
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -55,8 +61,17 @@ async def async_setup_entry(
     entry: EufySdkConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Create one light per device that has the `smart_light` capability."""
+    """Create camera on/off lights and lights with the `smart_light` capability."""
     coordinator = entry.runtime_data.coordinator
+    async_add_entities(
+        EufySdkCameraLight(coordinator, sn, spec)
+        for sn, dev in coordinator.data.items()
+        if not has_capability(dev, "smart_light")
+        for spec in entry.runtime_data.properties.get(sn, [])
+        if spec["name"] == "light"
+        and classify(spec) == "switch"
+        and not spec.get("writeOnly")
+    )
     smart_lights = [
         sn for sn, dev in coordinator.data.items() if has_capability(dev, "smart_light")
     ]
@@ -75,6 +90,27 @@ async def async_setup_entry(
     async_add_entities(
         EufySdkSmartLight(coordinator, sn, effects) for sn in smart_lights
     )
+
+
+class EufySdkCameraLight(EufySdkPropertyEntity, LightEntity):
+    """A camera's writable `light` property as an on/off light."""
+
+    _attr_supported_color_modes: ClassVar[set[ColorMode]] = {ColorMode.ONOFF}
+    _attr_color_mode = ColorMode.ONOFF
+
+    @property
+    def is_on(self) -> bool | None:
+        """Return the reported or optimistic state, or unknown before a report."""
+        value = self.prop_value
+        return None if value is None else bool(value)
+
+    async def async_turn_on(self, **_: Any) -> None:
+        """Turn the camera light on."""
+        await self.write(value=True)
+
+    async def async_turn_off(self, **_: Any) -> None:
+        """Turn the camera light off."""
+        await self.write(value=False)
 
 
 class EufySdkSmartLight(EufySdkDeviceEntity, LightEntity):

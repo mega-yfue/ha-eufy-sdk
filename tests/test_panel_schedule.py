@@ -6,6 +6,7 @@ from unittest.mock import Mock, patch
 
 from custom_components.eufy_sdk import alarm_control_panel
 from custom_components.eufy_sdk import entity as entity_module
+from custom_components.eufy_sdk.arming_sync import apply_arming_mode_event
 
 STATION = "T8030P0000000001"
 # Home (1) from 07:00 to 20:20, Away (0) from 20:20 to the end of the day, every day.
@@ -39,6 +40,7 @@ def _panel(state: dict, alarms: dict | None = None):
     coordinator = Mock()
     coordinator.data = {STATION: {"capabilities": ["arming"], "state": state}}
     coordinator.config_entry.runtime_data.station_alarms = alarms or {}
+    coordinator.config_entry.runtime_data.arming_changes = {}
     entity = alarm_control_panel.EufySdkAlarmControlPanel(coordinator, STATION)
     entity.hass = Mock()
     entity.async_write_ha_state = Mock()
@@ -103,6 +105,21 @@ class PanelScheduleTests(unittest.TestCase):
         ):
             entity._arm_boundary()
         self.assertEqual(track.call_args.args[2], datetime(2026, 9, 24, 20, 20))  # noqa: DTZ001
+
+    def test_the_panel_names_who_switched_the_mode(self):
+        entity = _panel({})
+        changes = entity.coordinator.config_entry.runtime_data.arming_changes
+        bare = {"event": "armingModeChanged", "deviceSn": STATION, "mode": 0}
+        # user 1 is the keypad, 2 the app; a push without them keeps the last record.
+        for event, via in (
+            ({**bare, "user": 1, "user_name": "user"}, "keypad"),
+            ({**bare, "user": 2, "user_name": "user"}, "app"),
+            (bare, "app"),
+        ):
+            apply_arming_mode_event(entity.coordinator, event, changes)
+            with _at(12, 0):
+                self.assertEqual(entity.extra_state_attributes["changed_via"], via)
+            self.assertEqual(entity.changed_by, "user")
 
 
 if __name__ == "__main__":

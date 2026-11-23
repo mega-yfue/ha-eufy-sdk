@@ -97,3 +97,49 @@ LAST_SCREEN_REFRESH = "lastScreenUpdated"
 
 # Push carries no "cleared" signal, so a push binary_sensor auto-offs after this delay.
 PUSH_AUTO_OFF_SECONDS = 30
+
+# A smart lock reports every lock/unlock on ONE push event (`lockState`, which the
+# bridge decodes to a `locked` bool). Its `eventType` says how it happened and
+# `nick_name` who — eufy-security-client's LockPushEvent codes. The Lock event entity
+# fires these so automations can tell a fingerprint unlock from the app, keypad, ….
+LOCK_EVENT = "lockState"
+LOCK_LOCKED = "locked"
+LOCK_UNLOCKED = "unlocked"
+# eventType code -> (HA event_type, method)
+LOCK_EVENT_CODES: dict[int, tuple[str, str]] = {
+    257: (LOCK_UNLOCKED, "manual"),
+    258: (LOCK_UNLOCKED, "automatic"),
+    259: (LOCK_UNLOCKED, "password"),
+    260: (LOCK_UNLOCKED, "fingerprint"),
+    261: (LOCK_UNLOCKED, "app"),
+    262: (LOCK_LOCKED, "manual"),
+    263: (LOCK_LOCKED, "keypad"),
+    264: (LOCK_LOCKED, "app"),
+    265: (LOCK_LOCKED, "automatic"),
+    266: (LOCK_LOCKED, "password"),
+    267: (LOCK_LOCKED, "fingerprint"),
+    268: (LOCK_LOCKED, "temporary_password"),
+    269: (LOCK_UNLOCKED, "temporary_password"),
+}
+LOCK_METHODS: tuple[str, ...] = tuple(
+    sorted({method for _, method in LOCK_EVENT_CODES.values()})
+)
+
+
+def decode_lock_event(data: dict) -> tuple[str, str | None, str | None] | None:
+    """
+    Decode a `lockState` push into (event_type, method, user), or None.
+
+    The method comes from `eventType`; an unknown code falls back to the decoded
+    `locked` bool with no method. Anything without either is not a lock report.
+    """
+    if data.get("event") != LOCK_EVENT:
+        return None
+    code = data.get("eventType", data.get("event_type"))
+    event_type, method = LOCK_EVENT_CODES.get(code, (None, None))
+    if event_type is None:
+        locked = data.get("locked")
+        if not isinstance(locked, bool):
+            return None
+        event_type = LOCK_LOCKED if locked else LOCK_UNLOCKED
+    return event_type, method, data.get("nick_name") or None
