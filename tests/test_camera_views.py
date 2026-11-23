@@ -151,6 +151,49 @@ class CameraViewTests(unittest.IsolatedAsyncioTestCase):
                     ],
                 )
 
+    async def test_a_battery_view_reads_its_own_bridge_feed(self) -> None:
+        cameras, _ = await setup_camera(power="battery")
+        self.assertEqual(
+            [await cam.stream_source() for cam in cameras],
+            [
+                f"http://bridge:3000/stream/{SN}",
+                f"http://bridge:3000/stream/{SN}?view=1",
+            ],
+        )
+
+    async def test_a_battery_camera_reads_the_selected_full_hd_feed(self) -> None:
+        views = deepcopy(VIEWS)
+        for view in views:
+            query = "&" if "?" in view["stream"] else "?"
+            view["outputs"] = [
+                {
+                    "outputResolution": "1080p",
+                    "id": view["id"] + "_output_1080p",
+                    "stream": view["stream"] + query + "outputResolution=1080p",
+                    "snapshot": view["snapshot"] + query + "outputResolution=1080p",
+                }
+            ]
+        cameras, _ = await setup_camera(
+            options={"live_output_resolution": "1080p"}, views=views, power="battery"
+        )
+        self.assertEqual(
+            [await cam.stream_source() for cam in cameras],
+            [
+                f"http://bridge:3000/stream/{SN}?outputResolution=1080p",
+                f"http://bridge:3000/stream/{SN}?view=1&outputResolution=1080p",
+            ],
+        )
+
+    async def test_a_battery_view_without_a_stream_path_falls_back(self) -> None:
+        views = deepcopy(VIEWS)
+        for view in views:
+            del view["stream"]
+        cameras, _ = await setup_camera(views=views, power="battery")
+        self.assertEqual(
+            [await cam.stream_source() for cam in cameras],
+            [f"http://bridge:3000/stream/{SN}"] * 2,
+        )
+
     async def test_legacy_and_single_view_bridges_keep_one_primary_camera(self) -> None:
         for views in (None, [VIEWS[0]]):
             with self.subTest(views=views):
