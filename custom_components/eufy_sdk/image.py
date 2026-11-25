@@ -15,6 +15,7 @@ from homeassistant.util import dt as dt_util
 
 from .const import CONF_HOST, CONF_PORT, EVENT_TYPE
 from .entity import EufySdkDeviceEntity
+from .last_screen import last_screen_views
 from .pushmap import EVENT_IMAGE_REFRESH, LAST_SCREEN_REFRESH, THUMBNAIL_EVENTS
 
 if TYPE_CHECKING:
@@ -40,9 +41,9 @@ async def async_setup_entry(
     async_add_entities(
         [EufySdkEventImage(hass, coordinator, sn, host, port) for sn in cameras]
         + [
-            EufySdkLastScreenImage(hass, coordinator, sn, host, port)
+            EufySdkLastScreenImage(hass, coordinator, sn, host, port, view=view)
             for sn in cameras
-            if coordinator.data[sn].get("lastScreen")
+            for view in last_screen_views(coordinator.data[sn])
         ]
     )
 
@@ -166,18 +167,27 @@ class EufySdkLastScreenImage(EufySdkEventImage):
 
     _attr_translation_key = "last_screen"
 
-    def __init__(
+    def __init__(  # noqa: PLR0913 - retain the bridge address and add its view descriptor
         self,
         hass: HomeAssistant,
         coordinator: EufySdkDataUpdateCoordinator,
         sn: str,
         host: str,
         port: int,
+        *,
+        view: dict | None = None,
     ) -> None:
         """Bind to a device serial + the bridge address."""
         super().__init__(hass, coordinator, sn, host, port)
         self._attr_unique_id = f"{sn}_last_screen"
         self._url = f"http://{host}:{port}/last-screen/{sn}"
+        self._view = view["view"] if view else 0
+        if view:
+            self._url = f"http://{host}:{port}{view['lastScreen']}"
+        if self._view != 0:
+            self._attr_unique_id = f"{sn}_last_screen_view_{self._view}"
+            self._attr_translation_key = "last_screen_view"
+            self._attr_translation_placeholders = {"view": str(self._view)}
         self._saved_at = None
 
     @callback
@@ -187,6 +197,7 @@ class EufySdkLastScreenImage(EufySdkEventImage):
         if (
             data.get("deviceSn") == self._sn
             and data.get("event") == LAST_SCREEN_REFRESH
+            and data.get("view", 0) == self._view
         ):
             self.hass.async_create_task(self._refresh())
 

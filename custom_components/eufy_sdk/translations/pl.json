@@ -38,6 +38,9 @@
       },
       "take_screenshot": {
         "name": "Zrób zrzut ekranu"
+      },
+      "take_screenshot_view": {
+        "name": "Zrób zrzut ekranu (View {view})"
       }
     },
     "event": {
@@ -83,6 +86,9 @@
       },
       "last_screen": {
         "name": "Ostatni widok"
+      },
+      "last_screen_view": {
+        "name": "Ostatni widok (View {view})"
       }
     },
     "select": {

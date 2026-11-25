@@ -38,6 +38,9 @@
       },
       "take_screenshot": {
         "name": "Screenshot maken"
+      },
+      "take_screenshot_view": {
+        "name": "Screenshot maken (View {view})"
       }
     },
     "event": {
@@ -54,6 +57,9 @@
       },
       "last_screen": {
         "name": "Laatste beeld"
+      },
+      "last_screen_view": {
+        "name": "Laatste beeld (View {view})"
       }
     },
     "select": {
