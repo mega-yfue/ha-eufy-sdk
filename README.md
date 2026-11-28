@@ -48,6 +48,10 @@ Entities are built from what each device reports, so you only get what your hard
 - **Sensors** — battery %, signal, and per-device state.
 - **Switches, selects & numbers** — e.g. privacy/enabled, night vision, video/recording quality.
 - **Locks** — where the account exposes a supported lock.
+- **Dog cameras** — a *Last toss at* time where the camera reports it, and a *Toss treat* button with a
+  *Toss distance* select where the bridge reports `canToss` (the eufy Pet Camera D605). Choosing a
+  distance sends nothing; each press of **Toss treat** submits one toss request, never repeated. The
+  *Last toss at* time moving afterwards is the camera reporting the toss.
 - **Robot vacuums & lawn mowers** — recognised and surfaced as sensors, switches, and buttons.
   There's no dedicated HA vacuum/mower card yet (start/dock live as controls, not a robot entity).
 

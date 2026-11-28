@@ -36,6 +36,9 @@
       "open_lid": {
         "name": "Open lid"
       },
+      "toss_treat": {
+        "name": "Toss treat"
+      },
       "take_screenshot": {
         "name": "Take Screenshot"
       }
@@ -97,6 +100,14 @@
           "stored": "Stored",
           "live": "Live",
           "screen": "Last screen (last watched picture)"
+        }
+      },
+      "toss_distance": {
+        "name": "Toss distance",
+        "state": {
+          "near": "Near",
+          "middle": "Middle",
+          "far": "Far"
         }
       }
     },

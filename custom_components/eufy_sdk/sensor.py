@@ -527,6 +527,10 @@ class EufySdkPropertySensor(EufySdkPropertyEntity, SensorEntity):
         elif kind == "celsius":
             self._attr_device_class = SensorDeviceClass.TEMPERATURE
             self._attr_state_class = SensorStateClass.MEASUREMENT
+        elif kind == "timestamp":
+            # Unix seconds on the wire. As a TIMESTAMP the frontend shows it in each
+            # viewer's own time zone and as "5 minutes ago", not as a ten-digit number.
+            self._attr_device_class = SensorDeviceClass.TIMESTAMP
 
     @property
     def native_value(self) -> Any:
@@ -534,10 +538,24 @@ class EufySdkPropertySensor(EufySdkPropertyEntity, SensorEntity):
         v = self.prop_value
         if v is None:
             return None
+        if self._spec.get("kind") == "timestamp":
+            return _instant(v)
         enum = self._spec.get("enumValues")
         if enum:
             return enum.get(str(v), v) if isinstance(v, (int, str)) else None
         return v if isinstance(v, (int, float, str)) else None
+
+
+def _instant(seconds: Any) -> datetime | None:
+    """Read unix seconds as an instant; zero, a non-number or no real time is none."""
+    if isinstance(seconds, bool):
+        return None
+    try:
+        value = float(seconds)
+        instant = dt_util.utc_from_timestamp(value) if value > 0 else None
+    except (TypeError, ValueError, OverflowError, OSError):
+        return None
+    return instant
 
 
 class EufySdkCurrentModeSensor(

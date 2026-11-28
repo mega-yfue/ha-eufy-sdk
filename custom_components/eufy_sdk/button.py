@@ -1,4 +1,4 @@
-"""Button platform — device-level actions the bridge exposes (reboot, PTZ, lid)."""
+"""Button platform — device actions the bridge exposes (reboot, PTZ, lid, toss)."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from homeassistant.const import EntityCategory
 from homeassistant.exceptions import HomeAssistantError
 
 from . import presets
-from .const import DOMAIN
+from .const import DOMAIN, TOSS_DISTANCE_DEFAULT
 from .entity import EufySdkDeviceEntity, has_capability
 
 if TYPE_CHECKING:
@@ -80,6 +80,14 @@ async def async_setup_entry(
         for sn, dev in coordinator.data.items()
         if has_capability(dev, "smart_drop")
     )
+    # Toss a treat from a dog camera, gated on the bridge's `canToss`: the SDK offers
+    # the toss only on a verified model on its own station, while the `treat`
+    # capability alone also marks a model that can only report its last toss.
+    entities.extend(
+        EufySdkTossTreatButton(coordinator, sn)
+        for sn, dev in coordinator.data.items()
+        if dev.get("canToss")
+    )
     async_add_entities(entities)
 
 
@@ -122,6 +130,33 @@ class EufySdkOpenLidButton(EufySdkDeviceEntity, ButtonEntity):
         """Ask the bridge to open the lid."""
         client = self.client
         await client.action(self._sn, "openLid")
+
+
+class EufySdkTossTreatButton(EufySdkDeviceEntity, ButtonEntity):
+    """
+    Toss one treat from a dog camera, at the distance its select holds.
+
+    Each press submits one toss request to the bridge and is never repeated here,
+    because a second send is a second treat. A press that returns without raising means
+    the request was handed to the local transport, not that a treat landed; a later
+    update of the camera's last-toss time records a toss the camera reported. A press
+    that fails is not retried either.
+    """
+
+    _attr_icon = "mdi:bone"
+    _attr_translation_key = "toss_treat"
+
+    def __init__(self, coordinator: EufySdkDataUpdateCoordinator, sn: str) -> None:
+        """Bind to a dog camera serial."""
+        super().__init__(coordinator, sn)
+        self._attr_unique_id = f"{sn}_toss_treat"
+
+    async def async_press(self) -> None:
+        """Ask the bridge for one toss at the selected distance."""
+        runtime = self.coordinator.config_entry.runtime_data
+        distance = runtime.toss_distance.get(self._sn, TOSS_DISTANCE_DEFAULT)
+        client = self.client
+        await client.action(self._sn, "toss", distance)
 
 
 class EufyRefreshEventButton(EufySdkDeviceEntity, ButtonEntity):
