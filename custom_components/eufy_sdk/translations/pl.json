@@ -36,6 +36,9 @@
       "open_lid": {
         "name": "Otwórz pokrywę"
       },
+      "toss_treat": {
+        "name": "Rzuć przysmak"
+      },
       "take_screenshot": {
         "name": "Zrób zrzut ekranu"
       }
@@ -97,6 +100,14 @@
           "stored": "Zapisany obraz",
           "live": "Na żywo",
           "screen": "Ostatni widok (ostatnio oglądany obraz)"
+        }
+      },
+      "toss_distance": {
+        "name": "Odległość rzutu",
+        "state": {
+          "near": "Blisko",
+          "middle": "Średnio",
+          "far": "Daleko"
         }
       }
     },

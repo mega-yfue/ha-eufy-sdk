@@ -1,4 +1,4 @@
-"""Select platform — one select per writable enum property, plus the Preset."""
+"""Select platform — a select per writable enum property, plus the local choices."""
 
 from __future__ import annotations
 
@@ -12,7 +12,12 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.restore_state import RestoreEntity
 
 from . import presets
-from .const import ATTR_SLOTS, SLOT_REREAD_SECS
+from .const import (
+    ATTR_SLOTS,
+    SLOT_REREAD_SECS,
+    TOSS_DISTANCE_DEFAULT,
+    TOSS_DISTANCES,
+)
 from .entity import (
     EufySdkDeviceEntity,
     EufySdkPropertyEntity,
@@ -90,6 +95,12 @@ async def async_setup_entry(
         EufySdkSnapshotPolicySelect(coordinator, sn)
         for sn, dev in coordinator.data.items()
         if dev.get("stream")
+    )
+    # The toss distance goes with the Toss treat button, on the same `canToss` gate.
+    entities.extend(
+        EufySdkTossDistanceSelect(coordinator, sn)
+        for sn, dev in coordinator.data.items()
+        if dev.get("canToss")
     )
     async_add_entities(entities)
 
@@ -170,6 +181,48 @@ class EufySdkSnapshotPolicySelect(EufySdkDeviceEntity, SelectEntity, RestoreEnti
         self.coordinator.config_entry.runtime_data.snapshot_policy[self._sn] = (
             self._attr_current_option
         )
+
+
+class EufySdkTossDistanceSelect(EufySdkDeviceEntity, SelectEntity, RestoreEntity):
+    """
+    How far this dog camera's toss button throws.
+
+    The distance is an argument of each toss, as in the eufy app: the camera stores no
+    distance setting, so the choice is local and restored across restarts. Choosing
+    one sends nothing to the camera and never tosses a treat.
+    """
+
+    _attr_icon = "mdi:arrow-expand-horizontal"
+    _attr_options: ClassVar[list[str]] = list(TOSS_DISTANCES)
+    _attr_translation_key = "toss_distance"
+
+    def __init__(self, coordinator: EufySdkDataUpdateCoordinator, sn: str) -> None:
+        """Bind a local distance choice to one dog camera."""
+        super().__init__(coordinator, sn)
+        self._attr_unique_id = f"{sn}_toss_distance"
+        self._attr_current_option = TOSS_DISTANCE_DEFAULT
+
+    async def async_added_to_hass(self) -> None:
+        """Restore the last choice without querying or writing the camera."""
+        await super().async_added_to_hass()
+        last = await self.async_get_last_state()
+        if last is not None and last.state in TOSS_DISTANCES:
+            self._attr_current_option = last.state
+        self._publish()
+
+    async def async_select_option(self, option: str) -> None:
+        """Store the choice for the next toss; nothing is sent to the camera."""
+        if option not in TOSS_DISTANCES:
+            msg = f"unknown toss distance: {option}"
+            raise HomeAssistantError(msg)
+        self._attr_current_option = option
+        self._publish()
+        self.async_write_ha_state()
+
+    def _publish(self) -> None:
+        """Share the distance with the button platform through the runtime data."""
+        runtime = self.coordinator.config_entry.runtime_data
+        runtime.toss_distance[self._sn] = self._attr_current_option
 
 
 class EufySolixScreenOffSelect(EufySolixEntity, SelectEntity):

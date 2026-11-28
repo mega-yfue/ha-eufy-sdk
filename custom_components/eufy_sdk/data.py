@@ -29,6 +29,9 @@ class EufySdkData:
     # select entity owns it and the go-to / save buttons read it, so the two platforms
     # agree on a slot without finding each other through the entity registry.
     selected_preset: dict[str, int] = field(default_factory=dict)
+    # How far each dog camera's toss button throws ({sn: "near" | "middle" | "far"}).
+    # The select entity owns it and the button reads it on each press.
+    toss_distance: dict[str, str] = field(default_factory=dict)
     # Local snapshot policy per camera; absent means the bridge's configured behavior.
     snapshot_policy: dict[str, str] = field(default_factory=dict)
     # Slots as each camera last reported them ({sn: [PresetSlot, …]}), read over P2P so

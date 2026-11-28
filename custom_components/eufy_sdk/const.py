@@ -64,3 +64,9 @@ ATTR_SLOTS = "slots"
 # not a poll — it just stops a long live view from re-asking on every refresh. Long
 # enough to be free, short enough that a preset added in the eufy app turns up.
 SLOT_REREAD_SECS = 600
+
+# How far a dog camera tosses a treat. The names are the SDK's own argument values, so
+# the chosen option is sent as it is. The camera stores no distance: the eufy app asks
+# for one on every toss, and so the choice lives in Home Assistant.
+TOSS_DISTANCES = ("near", "middle", "far")
+TOSS_DISTANCE_DEFAULT = "middle"
